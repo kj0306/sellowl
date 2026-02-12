@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — SELL OWL</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <style>
+        :root {
+            --amber: #d4a017;
+            --amber-dark: #b8860b;
+            --brown: #3d2c1e;
+            --cream: #f8f4ed;
+            --charcoal: #1a1612;
+            --error: #e74c3c;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, var(--charcoal) 0%, var(--brown) 50%, #2d2416 100%);
+            min-height: 100vh;
+            color: var(--cream);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .login-container {
+            background: rgba(26, 22, 18, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 3rem;
+            max-width: 420px;
+            width: 100%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(212, 160, 23, 0.2);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .owl-icon {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            color: var(--amber);
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.875rem;
+            background: rgba(248, 244, 237, 0.1);
+            border: 1px solid rgba(248, 244, 237, 0.2);
+            border-radius: 8px;
+            color: var(--cream);
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--amber);
+            background: rgba(248, 244, 237, 0.15);
+        }
+
+        .error-message {
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid var(--error);
+            color: var(--error);
+            padding: 0.875rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            background: var(--amber);
+            color: var(--charcoal);
+            border: none;
+            border-radius: 8px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.2s;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: var(--amber-dark);
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .info-text {
+            font-size: 0.85rem;
+            opacity: 0.7;
+            margin-top: 1rem;
+            text-align: center;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 1.5rem;
+            color: var(--amber);
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <div class="owl-icon">🦉</div>
+            <h1>SELL OWL</h1>
+            <p class="subtitle">Student Marketplace</p>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email (.edu)</label>
+                <input type="email" id="email" name="email" placeholder="yourname@university.edu" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+
+            <button type="submit" class="btn" id="loginBtn">Sign In</button>
+        </form>
+
+        <p class="info-text">Only verified .edu email addresses can access</p>
+
+        <div style="text-align: center; margin-top: 1.5rem; font-size: 0.9rem; opacity: 0.8;">
+            Don't have an account? <a href="/signup" style="color: var(--amber); text-decoration: none;">Sign Up</a>
+        </div>
+
+        <a href="/" class="back-link">← Back to Home</a>
+    </div>
+
+    <script>
+        // Firebase config - REPLACE WITH YOUR FIREBASE CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyB8QQMxxZgNNsU4KFjHXd9EWqSuXdfw39E",
+            authDomain: "sellowl-auth.firebaseapp.com",
+            projectId: "sellowl-auth",
+            storageBucket: "sellowl-auth.firebasestorage.app",
+            messagingSenderId: "499800174828",
+            appId: "1:499800174828:web:96f12f72769b7ff73c35c9",
+            measurementId: "G-R7Z576DMQY"
+        };
+
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+
+        // Login form handler
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorMessage = document.getElementById('errorMessage');
+            const loginBtn = document.getElementById('loginBtn');
+            
+            // Check email domain
+            if (!email.toLowerCase().endsWith('.edu')) {
+                showError('Only .edu email addresses are allowed');
+                return;
+            }
+
+            
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Signing in...';
+            errorMessage.classList.remove('show');
+            
+            try {
+                // Sign in with Firebase
+                const userCredential = await auth.signInWithEmailAndPassword(email, password);
+                const user = userCredential.user;
+                
+                // Check if email is verified
+                if (!user.emailVerified) {
+                    await auth.signOut();
+                    showError('Please verify your email address. Check your inbox for the verification link.');
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Sign In';
+                    return;
+                }
+                
+                // Get ID token
+                const idToken = await user.getIdToken();
+                
+                // Verify with backend
+                const response = await fetch('/api/auth/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ idToken })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Redirect to dashboard
+                    window.location.href = '/dashboard';
+                } else {
+                    showError(data.error || 'Authentication failed');
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Sign In';
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showError(error.message || 'Login failed. Please try again.');
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Sign In';
+            }
+        });
+        
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = message;
+            errorMessage.classList.add('show');
+        }
+    </script>
+</body>
+</html>

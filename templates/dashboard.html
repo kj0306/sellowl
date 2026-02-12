@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — SELL OWL</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --amber: #d4a017;
+            --amber-dark: #b8860b;
+            --brown: #3d2c1e;
+            --cream: #f8f4ed;
+            --charcoal: #1a1612;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, var(--charcoal) 0%, var(--brown) 50%, #2d2416 100%);
+            min-height: 100vh;
+            color: var(--cream);
+        }
+
+        .header {
+            background: rgba(26, 22, 18, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid rgba(212, 160, 23, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+            color: var(--amber);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-name {
+            font-weight: 500;
+        }
+
+        .btn-logout {
+            padding: 0.5rem 1rem;
+            background: transparent;
+            border: 1px solid rgba(248, 244, 237, 0.3);
+            color: var(--cream);
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.9rem;
+            transition: border-color 0.2s, color 0.2s;
+        }
+
+        .btn-logout:hover {
+            border-color: var(--amber);
+            color: var(--amber);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+
+        .welcome-card {
+            background: rgba(26, 22, 18, 0.6);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(212, 160, 23, 0.2);
+        }
+
+        .welcome-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.5rem;
+            color: var(--amber);
+            margin-bottom: 0.5rem;
+        }
+
+        .welcome-subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            margin-bottom: 1.5rem;
+        }
+
+        .verified-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(212, 160, 23, 0.2);
+            border: 1px solid var(--amber);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            color: var(--amber);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .card {
+            background: rgba(26, 22, 18, 0.6);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 2rem;
+            border: 1px solid rgba(212, 160, 23, 0.2);
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            border-color: var(--amber);
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--amber);
+            margin-bottom: 0.75rem;
+        }
+
+        .card-description {
+            opacity: 0.8;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .card-action {
+            color: var(--amber);
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-action:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">
+            <span>🦉</span>
+            <span>SELL OWL</span>
+        </div>
+        <div class="user-info">
+            <span class="user-name">{{ user.display_name }}</span>
+            <button class="btn-logout" onclick="logout()">Logout</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="welcome-card">
+            <h1 class="welcome-title">Welcome back, {{ user.display_name }}!</h1>
+            <p class="welcome-subtitle">You're verified and ready to buy and sell on campus.</p>
+            <div class="verified-badge">
+                <span>✓</span>
+                <span>Verified Student • {{ user.email }}</span>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <h2 class="card-title">Browse Listings</h2>
+                <p class="card-description">Find textbooks, furniture, electronics, and more from fellow students.</p>
+                <a href="#" class="card-action">Browse →</a>
+            </div>
+
+            <div class="card">
+                <h2 class="card-title">Sell an Item</h2>
+                <p class="card-description">List your used items and connect with buyers on campus.</p>
+                <a href="#" class="card-action">Create Listing →</a>
+            </div>
+
+            <div class="card">
+                <h2 class="card-title">My Listings</h2>
+                <p class="card-description">Manage your active listings and track your sales.</p>
+                <a href="#" class="card-action">View My Items →</a>
+            </div>
+
+            <div class="card">
+                <h2 class="card-title">Messages</h2>
+                <p class="card-description">Chat with buyers and sellers about items.</p>
+                <a href="#" class="card-action">Open Messages →</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function logout() {
+            try {
+                const response = await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                if (response.ok) {
+                    window.location.href = '/';
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+                // Still redirect on error
+                window.location.href = '/';
+            }
+        }
+    </script>
+</body>
+</html>
