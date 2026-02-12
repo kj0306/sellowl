@@ -176,10 +176,20 @@
             <div class="form-group">
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" required>
+                <div style="margin-top: 0.5rem; font-size: 0.85rem;">
+                    <a href="#" id="forgotPasswordLink" style="color: var(--amber); text-decoration: none;">Forgot password?</a>
+                </div>
             </div>
 
             <button type="submit" class="btn" id="loginBtn">Sign In</button>
         </form>
+
+        <div id="forgotPasswordSection" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(248,244,237,0.08); border-radius: 8px;">
+            <p style="font-size: 0.9rem; margin-bottom: 0.5rem;">Enter your .edu email to get a password reset link:</p>
+            <input type="email" id="resetEmail" placeholder="yourname@university.edu" style="width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; border-radius: 6px; border: 1px solid rgba(248,244,237,0.2); background: rgba(248,244,237,0.1); color: var(--cream);">
+            <button type="button" id="sendResetBtn" class="btn" style="padding: 0.5rem;">Send reset link</button>
+            <p id="resetMessage" style="font-size: 0.85rem; margin-top: 0.5rem; display: none;"></p>
+        </div>
 
         <p class="info-text">Only verified .edu email addresses can access</p>
 
@@ -265,9 +275,40 @@
                 }
             } catch (error) {
                 console.error('Login error:', error);
-                showError(error.message || 'Login failed. Please try again.');
+                let msg = error.message || 'Login failed. Please try again.';
+                if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+                    msg = 'Wrong email or password. Use the exact email you signed up with. Try "Forgot password?" to reset.';
+                }
+                showError(msg);
                 loginBtn.disabled = false;
                 loginBtn.textContent = 'Sign In';
+            }
+        });
+
+        // Forgot password
+        document.getElementById('forgotPasswordLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('forgotPasswordSection').style.display = 'block';
+            document.getElementById('resetMessage').style.display = 'none';
+        });
+        document.getElementById('sendResetBtn').addEventListener('click', async function() {
+            const email = document.getElementById('resetEmail').value.trim();
+            const msgEl = document.getElementById('resetMessage');
+            if (!email || !email.endsWith('.edu')) {
+                msgEl.textContent = 'Please enter your .edu email.';
+                msgEl.style.display = 'block';
+                msgEl.style.color = 'var(--error, #e74c3c)';
+                return;
+            }
+            try {
+                await auth.sendPasswordResetEmail(email);
+                msgEl.textContent = 'Check your inbox for the password reset link.';
+                msgEl.style.display = 'block';
+                msgEl.style.color = 'var(--cream)';
+            } catch (err) {
+                msgEl.textContent = err.code === 'auth/user-not-found' ? 'No account found with this email. Sign up first.' : (err.message || 'Failed to send reset email.');
+                msgEl.style.display = 'block';
+                msgEl.style.color = 'var(--error, #e74c3c)';
             }
         });
         

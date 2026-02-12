@@ -3,6 +3,7 @@ import os
 from config import Config
 from firebase_auth import init_firebase, verify_id_token, check_email_domain
 from db import get_db_connection, init_db
+import psycopg2
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -68,35 +69,65 @@ def verify_auth():
             }), 403
         
         # Store/update user in database
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        # Check if user exists
-        cur.execute("SELECT id FROM users WHERE firebase_uid = %s", (firebase_uid,))
-        user = cur.fetchone()
-        
-        if user:
-            # Update existing user
+        try:
+            conn = get_db_connection()
+        except RuntimeError as e:
+            return jsonify({"error": str(e)}), 503
+        except psycopg2.OperationalError as e:
+            return jsonify({
+                "error": "Database connection failed. Check DATABASE_URL in Render → Environment and that Supabase allows connections (use connection string with sslmode=require).",
+                "detail": str(e),
+            }), 503
+
+        cur = None
+        try:
+            cur = conn.cursor()
+            # Ensure table exists on first use
             cur.execute("""
-                UPDATE users 
-                SET email = %s, display_name = %s, email_verified = %s, updated_at = CURRENT_TIMESTAMP
-                WHERE firebase_uid = %s
-                RETURNING id
-            """, (email, display_name, email_verified, firebase_uid))
-            user_id = cur.fetchone()[0]
-        else:
-            # Create new user
-            cur.execute("""
-                INSERT INTO users (firebase_uid, email, display_name, email_verified)
-                VALUES (%s, %s, %s, %s)
-                RETURNING id
-            """, (firebase_uid, email, display_name, email_verified))
-            user_id = cur.fetchone()[0]
-        
-        conn.commit()
-        cur.close()
-        conn.close()
-        
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    firebase_uid VARCHAR(255) UNIQUE NOT NULL,
+                    email VARCHAR(255) UNIQUE NOT NULL,
+                    display_name VARCHAR(255),
+                    email_verified BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+
+            # Check if user exists
+            cur.execute("SELECT id FROM users WHERE firebase_uid = %s", (firebase_uid,))
+            user = cur.fetchone()
+
+            if user:
+                cur.execute("""
+                    UPDATE users 
+                    SET email = %s, display_name = %s, email_verified = %s, updated_at = CURRENT_TIMESTAMP
+                    WHERE firebase_uid = %s
+                    RETURNING id
+                """, (email, display_name, email_verified, firebase_uid))
+                user_id = cur.fetchone()[0]
+            else:
+                cur.execute("""
+                    INSERT INTO users (firebase_uid, email, display_name, email_verified)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id
+                """, (firebase_uid, email, display_name, email_verified))
+                user_id = cur.fetchone()[0]
+
+            conn.commit()
+        except psycopg2.Error as e:
+            conn.rollback()
+            return jsonify({
+                "error": "Database error while saving user.",
+                "detail": str(e),
+            }), 503
+        finally:
+            if cur:
+                cur.close()
+            conn.close()
+
         # Set session
         session['user_id'] = user_id
         session['firebase_uid'] = firebase_uid
