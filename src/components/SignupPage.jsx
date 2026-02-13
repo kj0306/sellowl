@@ -97,7 +97,7 @@ export default function SignupPage({ onBack }) {
             placeholder="University email (.edu)"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border-2 border-[#d4a017]/30 bg-[#f8f4ed] dark:bg-[#3d2c1e]/50 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/50 focus:outline-none focus:ring-2 focus:ring-[#d4a017]"
+            className="w-full px-4 py-3 rounded-xl border-2 border-[#d4a017]/30 bg-[#f8f4ed] dark:bg-[#3d2c1e]/50 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/60 dark:placeholder-[#f8f4ed]/70 focus:outline-none focus:ring-2 focus:ring-[#d4a017]"
             required
           />
           <input
@@ -105,7 +105,7 @@ export default function SignupPage({ onBack }) {
             placeholder="Password (at least 6 characters)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border-2 border-[#d4a017]/30 bg-[#f8f4ed] dark:bg-[#3d2c1e]/50 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/50 focus:outline-none focus:ring-2 focus:ring-[#d4a017]"
+            className="w-full px-4 py-3 rounded-xl border-2 border-[#d4a017]/30 bg-[#f8f4ed] dark:bg-[#3d2c1e]/50 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/60 dark:placeholder-[#f8f4ed]/70 focus:outline-none focus:ring-2 focus:ring-[#d4a017]"
             required
             minLength={6}
           />
@@ -114,7 +114,7 @@ export default function SignupPage({ onBack }) {
             placeholder="Re-enter password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border-2 border-[#d4a017]/30 bg-[#f8f4ed] dark:bg-[#3d2c1e]/50 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/50 focus:outline-none focus:ring-2 focus:ring-[#d4a017]"
+            className="w-full px-4 py-3 rounded-xl border-2 border-[#d4a017]/30 bg-[#f8f4ed] dark:bg-[#3d2c1e]/50 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/60 dark:placeholder-[#f8f4ed]/70 focus:outline-none focus:ring-2 focus:ring-[#d4a017]"
             required
             minLength={6}
           />
@@ -123,7 +123,7 @@ export default function SignupPage({ onBack }) {
             placeholder="Display name (optional)"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border-2 border-[#d4a017]/30 bg-[#f8f4ed] dark:bg-[#3d2c1e]/50 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/50 focus:outline-none focus:ring-2 focus:ring-[#d4a017]"
+            className="w-full px-4 py-3 rounded-xl border-2 border-[#d4a017]/30 bg-[#f8f4ed] dark:bg-[#3d2c1e]/50 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/60 dark:placeholder-[#f8f4ed]/70 focus:outline-none focus:ring-2 focus:ring-[#d4a017]"
           />
           <button
             type="submit"

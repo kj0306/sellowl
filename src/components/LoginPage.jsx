@@ -96,7 +96,7 @@ export default function LoginPage({ onLogin, onShowSignup }) {
             placeholder="University email (.edu)"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border-2 border-[#d4a017]/30 bg-[#f8f4ed] dark:bg-[#3d2c1e]/50 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/50 focus:outline-none focus:ring-2 focus:ring-[#d4a017]"
+            className="w-full px-4 py-3 rounded-xl border-2 border-[#d4a017]/30 bg-[#f8f4ed] dark:bg-[#3d2c1e]/50 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/60 dark:placeholder-[#f8f4ed]/70 focus:outline-none focus:ring-2 focus:ring-[#d4a017]"
             required
           />
           <div>
@@ -105,7 +105,7 @@ export default function LoginPage({ onLogin, onShowSignup }) {
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border-2 border-[#d4a017]/30 bg-[#f8f4ed] dark:bg-[#3d2c1e]/50 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/50 focus:outline-none focus:ring-2 focus:ring-[#d4a017]"
+              className="w-full px-4 py-3 rounded-xl border-2 border-[#d4a017]/30 bg-[#f8f4ed] dark:bg-[#3d2c1e]/50 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/60 dark:placeholder-[#f8f4ed]/70 focus:outline-none focus:ring-2 focus:ring-[#d4a017]"
               required
             />
             <button
@@ -135,7 +135,7 @@ export default function LoginPage({ onLogin, onShowSignup }) {
               placeholder="yourname@university.edu"
               value={resetEmail}
               onChange={(e) => setResetEmail(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-[#d4a017]/20 bg-[#f8f4ed] dark:bg-[#3d2c1e]/50 text-[#1a1612] dark:text-[#f8f4ed] text-sm"
+              className="w-full px-3 py-2 rounded-lg border border-[#d4a017]/20 bg-[#f8f4ed] dark:bg-[#3d2c1e]/50 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/60 dark:placeholder-[#f8f4ed]/70 text-sm"
             />
             <button
               type="button"
