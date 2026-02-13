@@ -1,3 +1,13 @@
+# Stage 1: Build React frontend
+FROM node:20-alpine AS frontend
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Stage 2: Python backend + serve frontend
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -6,8 +16,11 @@ WORKDIR /app
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend application code
+# Copy backend code
 COPY backend/ .
+
+# Copy built frontend from stage 1
+COPY --from=frontend /app/dist ./dist
 
 # Render sets PORT; default to 5000 for local Docker
 ENV PORT=5000

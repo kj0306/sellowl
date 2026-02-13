@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify, session, send_from_directory
 from flask_cors import CORS
 import os
 from config import Config
@@ -6,7 +6,7 @@ from firebase_auth import init_firebase, verify_id_token, check_email_domain
 from db import get_db_connection, init_db
 import psycopg2
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="dist", static_url_path="")
 app.config.from_object(Config)
 
 # CORS for React dev server and production
@@ -150,6 +150,26 @@ def logout():
     """Logout user"""
     session.clear()
     return jsonify({"success": True})
+
+
+# Serve React frontend (static files + SPA fallback)
+@app.route("/")
+def index():
+    """Serve the React app"""
+    if os.path.exists(os.path.join(app.static_folder, "index.html")):
+        return send_from_directory(app.static_folder, "index.html")
+    return jsonify({"message": "Sell OWL API", "docs": "/api/auth/me"}), 404
+
+
+@app.route("/<path:path>")
+def serve_frontend(path):
+    """Serve static assets or SPA fallback for client-side routing"""
+    file_path = os.path.join(app.static_folder, path)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return send_from_directory(app.static_folder, path)
+    if os.path.exists(os.path.join(app.static_folder, "index.html")):
+        return send_from_directory(app.static_folder, "index.html")
+    return jsonify({"error": "Not found"}), 404
 
 
 if __name__ == "__main__":
