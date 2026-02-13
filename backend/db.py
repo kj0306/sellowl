@@ -1,14 +1,11 @@
 import psycopg2
-from psycopg2.extras import RealDictCursor
 import os
 from config import Config
 
-# Track if we've successfully run init so we retry on first use
 _db_initialized = False
 
 
 def _connection_url():
-    """DATABASE_URL with sslmode=require for Supabase when not present."""
     url = Config.DATABASE_URL
     if not url:
         return None
@@ -19,21 +16,17 @@ def _connection_url():
 
 
 def get_db_connection():
-    """Get PostgreSQL database connection. Raises if DATABASE_URL not set or connection fails."""
     url = _connection_url()
     if not url:
-        raise RuntimeError(
-            "DATABASE_URL is not set. Add it in Render Dashboard → Environment."
-        )
+        raise RuntimeError("DATABASE_URL is not set.")
     return psycopg2.connect(url)
 
 
 def init_db():
-    """Initialize database tables. Safe to call at startup; logs and continues on failure."""
     global _db_initialized
     url = _connection_url()
     if not url:
-        print("Warning: DATABASE_URL not set. User data will not be saved. Set DATABASE_URL in Render → Environment.")
+        print("Warning: DATABASE_URL not set. User data will not be saved.")
         return
     try:
         conn = psycopg2.connect(url)
@@ -55,5 +48,4 @@ def init_db():
         _db_initialized = True
         print("Database initialized successfully")
     except Exception as e:
-        print(f"Database init failed (app will still start): {e}")
-        print("Set DATABASE_URL in Render → Environment and use Supabase connection string with sslmode=require if needed.")
+        print(f"Database init failed: {e}")

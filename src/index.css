@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Sell OWL palette - warm, from dashboard style */
+  --color-owl-amber: #d4a017;
+  --color-owl-amber-dark: #b8860b;
+  --color-owl-cream: #f8f4ed;
+  --color-owl-charcoal: #1a1612;
+  --color-owl-brown: #3d2c1e;
+  --font-sans: 'Outfit', system-ui, sans-serif;
+  --font-display: 'Playfair Display', serif;
+}
+
+:root {
+  font-family: 'Outfit', system-ui, sans-serif;
+  --owl-amber: #d4a017;
+  --owl-amber-dark: #b8860b;
+  --owl-cream: #f8f4ed;
+  --owl-charcoal: #1a1612;
+  --owl-brown: #3d2c1e;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes owl-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.9; }
+}
+
+.animate-owl-pulse {
+  animation: owl-pulse 1.5s ease-in-out infinite;
+}
