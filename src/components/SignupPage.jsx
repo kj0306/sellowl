@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth";
 import { auth } from "../lib/firebase";
 
 export default function SignupPage({ onBack }) {
@@ -37,12 +37,13 @@ export default function SignupPage({ onBack }) {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
+      // Send verification first (modular API: use standalone function so email is sent reliably)
+      await sendEmailVerification(user);
+
       if (displayName.trim()) {
         await updateProfile(user, { displayName: displayName.trim() });
       }
-
-      await user.sendEmailVerification();
-      setSuccess("Account created! Please check your email to verify your account before signing in.");
+      setSuccess("Account created! Check your inbox (and spam/junk) for the verification email before signing in.");
       setEmail("");
       setPassword("");
       setConfirmPassword("");
@@ -58,6 +59,8 @@ export default function SignupPage({ onBack }) {
         msg = "Password is too weak. Please choose a stronger password.";
       } else if (err.code === "auth/invalid-email") {
         msg = "Invalid email address. Please check and try again.";
+      } else if (err.code === "auth/too-many-requests") {
+        msg = "Too many attempts. Please try again later.";
       } else {
         msg = err.message || msg;
       }

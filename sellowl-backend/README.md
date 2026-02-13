@@ -5,7 +5,7 @@ A platform where students can sell used items and buy — textbooks, furniture, 
 ## Features
 
 - 🔐 **Firebase Authentication** - Secure student-only access
-- ✅ **Email Verification** - Only verified @wisc.edu emails allowed
+- ✅ **Email Verification** - Only verified .edu emails allowed
 - 📊 **PostgreSQL Database** - User profiles stored in Supabase
 - 🎨 **Modern UI** - Clean, responsive design
 
