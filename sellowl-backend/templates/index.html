@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SELL OWL — Student Marketplace</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --amber: #d4a017;
+            --amber-dark: #b8860b;
+            --brown: #3d2c1e;
+            --cream: #f8f4ed;
+            --charcoal: #1a1612;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, var(--charcoal) 0%, var(--brown) 50%, #2d2416 100%);
+            min-height: 100vh;
+            color: var(--cream);
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+            text-align: center;
+        }
+
+        h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(3rem, 10vw, 6rem);
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: var(--amber);
+            text-shadow: 0 0 40px rgba(212, 160, 23, 0.3);
+            margin-bottom: 1rem;
+        }
+
+        .tagline {
+            font-size: 1.35rem;
+            font-weight: 300;
+            letter-spacing: 0.05em;
+            opacity: 0.95;
+            max-width: 480px;
+            margin: 0 auto 3rem;
+            line-height: 1.7;
+        }
+
+        .tagline strong {
+            color: var(--amber);
+            font-weight: 500;
+        }
+
+        .divider {
+            width: 80px;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--amber), transparent);
+            margin: 0 auto 3rem;
+        }
+
+        .cta {
+            display: inline-flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 500;
+            letter-spacing: 0.06em;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--amber);
+            color: var(--charcoal);
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background: var(--amber-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(212, 160, 23, 0.35);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--cream);
+            border: 2px solid rgba(248, 244, 237, 0.4);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--amber);
+            color: var(--amber);
+            transform: translateY(-2px);
+        }
+
+        .owl-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="owl-icon">🦉</div>
+        <h1>SELL OWL</h1>
+        <div class="divider"></div>
+        <p class="tagline">
+            A platform where students can <strong>sell</strong> used items and <strong>buy</strong> — textbooks, furniture, electronics, and more. Simple, safe, and built for campus life.
+        </p>
+        <div class="cta">
+            <a href="/signup" class="btn btn-primary">Get Started</a>
+            <a href="/login" class="btn btn-secondary">Sign In</a>
+        </div>
+    </div>
+</body>
+</html>
