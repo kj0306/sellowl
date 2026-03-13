@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth";
-import { auth } from "../lib/firebase";
+import { auth } from "../../lib/firebase";
 
 export default function SignupPage({ onBack }) {
   const [email, setEmail] = useState("");

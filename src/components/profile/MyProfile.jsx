@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { currentUser, getProfileProducts } from "../data/dummyData";
+import { currentUser, getProfileProducts } from "../../data/dummyData";
 
 export default function MyProfile({ onMessage, onOffers, offersCount = 0 }) {
   const profile = currentUser;

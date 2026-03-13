@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getProfileById, getProfileProducts, getPostByProfileId } from "../data/dummyData";
+import { getProfileById, getProfileProducts, getPostByProfileId } from "../../data/dummyData";
 
 export default function Profile({ profileId, onMessage, onCheckout, onAddToBag }) {
   const profile = getProfileById(profileId);

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { posts, getProfileById, universities, currentUser, getDistanceMiles } from "../data/dummyData";
+import { posts, getProfileById, universities, currentUser, getDistanceMiles } from "../../data/dummyData";
 
 const ZONE_OPTIONS = [
   { id: "products", label: "Products Zone" },

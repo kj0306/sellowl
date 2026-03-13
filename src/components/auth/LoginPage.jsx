@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../lib/firebase";
-import { verifyAuth } from "../lib/api";
+import { auth } from "../../lib/firebase";
+import { verifyAuth } from "../../lib/api";
 
 export default function LoginPage({ onLogin, onShowSignup }) {
   const [email, setEmail] = useState("");

@@ -1,4 +1,4 @@
-import { getProfileById } from "../data/dummyData";
+import { getProfileById } from "../../data/dummyData";
 
 export default function Offers({ offers, onAccept, onReject, onBack }) {
   return (

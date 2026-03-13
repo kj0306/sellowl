@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { profiles } from "../data/dummyData";
+import { profiles } from "../../data/dummyData";
 
 // Dummy messages - Instagram DM style
 const dummyMessages = profiles.slice(0, 8).map((p, i) => ({
