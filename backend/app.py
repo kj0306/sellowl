@@ -171,6 +171,113 @@ def serve_frontend(path):
         return send_from_directory(app.static_folder, "index.html")
     return jsonify({"error": "Not found"}), 404
 
+@app.route("/api/listings", methods=["GET"])
+def get_listings():
+    """Get all available listings for the feed"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT l.id, l.title, l.description, l.price, l.category,
+                   l.condition, l.image_url, l.created_at,
+                   u.display_name as seller_name, u.email as seller_email, u.id as seller_id
+            FROM listings l
+            JOIN users u ON l.user_id = u.id
+            WHERE l.is_available = TRUE
+            ORDER BY l.created_at DESC
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        listings = [
+            {
+                "id": r[0],
+                "title": r[1],
+                "description": r[2],
+                "price": float(r[3]) if r[3] else 0,
+                "category": r[4],
+                "condition": r[5],
+                "image_url": r[6],
+                "created_at": r[7].isoformat() if r[7] else None,
+                "seller": {
+                    "id": r[10],
+                    "name": r[8],
+                    "email": r[9],
+                },
+            }
+            for r in rows
+        ]
+        return jsonify({"listings": listings})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/listings", methods=["POST"])
+def create_listing():
+    """Create a new listing (must be logged in)"""
+    if "user_id" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    try:
+        data = request.get_json()
+        title = data.get("title", "").strip()
+        if not title:
+            return jsonify({"error": "Title is required"}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO listings (user_id, title, description, price, category, condition, image_url)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            session["user_id"],
+            title,
+            data.get("description", ""),
+            data.get("price", 0),
+            data.get("category", "Other"),
+            data.get("condition", "Good"),
+            data.get("image_url", ""),
+        ))
+        listing_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "id": listing_id}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/listings/<int:listing_id>", methods=["GET"])
+def get_listing(listing_id):
+    """Get a single listing by ID"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT l.id, l.title, l.description, l.price, l.category,
+                   l.condition, l.image_url, l.created_at,
+                   u.display_name, u.email, u.id
+            FROM listings l
+            JOIN users u ON l.user_id = u.id
+            WHERE l.id = %s
+        """, (listing_id,))
+        r = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not r:
+            return jsonify({"error": "Listing not found"}), 404
+        return jsonify({
+            "id": r[0], "title": r[1], "description": r[2],
+            "price": float(r[3]) if r[3] else 0,
+            "category": r[4], "condition": r[5], "image_url": r[6],
+            "created_at": r[7].isoformat() if r[7] else None,
+            "seller": {"id": r[10], "name": r[8], "email": r[9]},
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
