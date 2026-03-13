@@ -71,25 +71,12 @@ export default function Feed({ onPostClick, searchQuery = "" }) {
         <CreateListing onClose={() => setShowCreate(false)} onCreated={handleCreated} />
       )}
 
-      {/* ── Create Listing card (above categories) ── */}
+      {/* ── Create Listing CTA ── */}
       <button
         onClick={() => setShowCreate(true)}
-        className="w-full mb-4 flex items-center gap-3 px-4 py-3 bg-white dark:bg-[#221e1a] rounded-2xl border border-[#d4a017]/20 shadow-sm hover:shadow-md hover:border-[#d4a017]/50 transition-all group"
+        className="w-full mb-4 py-3 rounded-xl border-2 border-dashed border-[#d4a017]/40 hover:border-[#d4a017] hover:bg-[#d4a017]/5 transition-all flex items-center justify-center gap-2 text-[#d4a017] font-semibold text-sm"
       >
-        <div className="w-9 h-9 rounded-full bg-[#d4a017]/20 flex items-center justify-center shrink-0">
-          <span className="text-[#d4a017] text-lg font-bold leading-none">+</span>
-        </div>
-        <div className="flex-1 text-left">
-          <span className="text-sm text-[#3d2c1e]/40 dark:text-[#f8f4ed]/40 group-hover:text-[#3d2c1e]/70 dark:group-hover:text-[#f8f4ed]/70 transition-colors">
-            What are you selling today?
-          </span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-lg">📷</span>
-          <span className="text-xs font-semibold text-[#d4a017] bg-[#d4a017]/10 px-3 py-1.5 rounded-full whitespace-nowrap">
-            List item
-          </span>
-        </div>
+        <span className="text-lg">+</span> Create New Listing
       </button>
 
       {/* ── Filters ── */}
