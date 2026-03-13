@@ -2,6 +2,29 @@
 FROM node:20-alpine AS frontend
 WORKDIR /app
 
+# Declare build args for all VITE_ variables
+# These must match what's set in Render → Environment
+ARG VITE_CLOUDINARY_CLOUD_NAME
+ARG VITE_CLOUDINARY_UPLOAD_PRESET
+ARG VITE_STORAGE_PROVIDER
+ARG VITE_FIREBASE_API_KEY
+ARG VITE_FIREBASE_AUTH_DOMAIN
+ARG VITE_FIREBASE_PROJECT_ID
+ARG VITE_FIREBASE_STORAGE_BUCKET
+ARG VITE_FIREBASE_MESSAGING_SENDER_ID
+ARG VITE_FIREBASE_APP_ID
+
+# Expose args as env vars so Vite picks them up during npm run build
+ENV VITE_CLOUDINARY_CLOUD_NAME=$VITE_CLOUDINARY_CLOUD_NAME
+ENV VITE_CLOUDINARY_UPLOAD_PRESET=$VITE_CLOUDINARY_UPLOAD_PRESET
+ENV VITE_STORAGE_PROVIDER=$VITE_STORAGE_PROVIDER
+ENV VITE_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY
+ENV VITE_FIREBASE_AUTH_DOMAIN=$VITE_FIREBASE_AUTH_DOMAIN
+ENV VITE_FIREBASE_PROJECT_ID=$VITE_FIREBASE_PROJECT_ID
+ENV VITE_FIREBASE_STORAGE_BUCKET=$VITE_FIREBASE_STORAGE_BUCKET
+ENV VITE_FIREBASE_MESSAGING_SENDER_ID=$VITE_FIREBASE_MESSAGING_SENDER_ID
+ENV VITE_FIREBASE_APP_ID=$VITE_FIREBASE_APP_ID
+
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
@@ -9,22 +32,15 @@ RUN npm run build
 
 # Stage 2: Python backend + serve frontend
 FROM python:3.12-slim
-
 WORKDIR /app
 
-# Install dependencies
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend code
 COPY backend/ .
-
-# Copy built frontend from stage 1
 COPY --from=frontend /app/dist ./dist
 
-# Render sets PORT; default to 5000 for local Docker
 ENV PORT=5000
 EXPOSE ${PORT}
 
-# Run with gunicorn (Render expects 0.0.0.0)
 CMD gunicorn --bind 0.0.0.0:${PORT} --workers 1 app:app
