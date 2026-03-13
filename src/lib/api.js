@@ -31,3 +31,14 @@ export async function logout() {
 export async function getMe() {
   return apiFetch("/api/auth/me");
 }
+
+export async function fetchListings() {
+  return apiFetch("/api/listings");
+}
+
+export async function createListing(data) {
+  return apiFetch("/api/listings", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
