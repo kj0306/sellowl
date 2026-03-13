@@ -277,7 +277,37 @@ def get_listing(listing_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
+@app.route("/api/users/<int:user_id>/listings", methods=["GET"])
+def get_user_listings(user_id):
+    """Get all listings for a specific user"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT l.id, l.title, l.description, l.price, l.category,
+                   l.condition, l.image_url, l.is_available, l.created_at,
+                   u.display_name, u.email
+            FROM listings l
+            JOIN users u ON l.user_id = u.id
+            WHERE l.user_id = %s AND l.is_available = TRUE
+            ORDER BY l.created_at DESC
+        """, (user_id,))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({"listings": [
+            {
+                "id": r[0], "title": r[1], "description": r[2],
+                "price": float(r[3]) if r[3] else 0,
+                "category": r[4], "condition": r[5], "image_url": r[6],
+                "is_available": r[7],
+                "created_at": r[8].isoformat() if r[8] else None,
+                "seller_name": r[9], "seller_email": r[10],
+            }
+            for r in rows
+        ]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

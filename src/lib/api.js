@@ -42,3 +42,11 @@ export async function createListing(data) {
     body: JSON.stringify(data),
   });
 }
+
+export async function fetchUserListings(userId) {
+  return apiFetch(`/api/users/${userId}/listings`);
+}
+
+export async function fetchMe() {
+  return apiFetch("/api/auth/me");
+}
