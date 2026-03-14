@@ -277,6 +277,262 @@ def suggest_price():
         return jsonify({"error": str(e)}), 500
 
 
+# ─── STATIC / SPA → moved to bottom of file ───
+
+
+
+
+
+# ─── MESSAGING ───────────────────────────────────────────────────
+
+def _ensure_messaging_tables(conn):
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS conversations (
+            id SERIAL PRIMARY KEY,
+            user1_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            user2_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user1_id, user2_id)
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id SERIAL PRIMARY KEY,
+            conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+            sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            text TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    # Tracks when each user last read each conversation
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS conversation_reads (
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+            last_read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, conversation_id)
+        )
+    """)
+    conn.commit()
+    cur.close()
+
+
+@app.route("/api/conversations", methods=["GET", "POST"])
+def conversations():
+    if "user_id" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    # ── POST: start or get a conversation ──
+    if request.method == "POST":
+        try:
+            me = session["user_id"]
+            other_id = request.get_json().get("other_user_id")
+            if not other_id or other_id == me:
+                return jsonify({"error": "Invalid user"}), 400
+            conn = get_db_connection()
+            _ensure_messaging_tables(conn)
+            cur = conn.cursor()
+            u1, u2 = min(me, other_id), max(me, other_id)
+            cur.execute("""
+                INSERT INTO conversations (user1_id, user2_id)
+                VALUES (%s, %s)
+                ON CONFLICT (user1_id, user2_id) DO UPDATE SET user1_id = EXCLUDED.user1_id
+                RETURNING id
+            """, (u1, u2))
+            conv_id = cur.fetchone()[0]
+            conn.commit(); cur.close(); conn.close()
+            return jsonify({"conversation_id": conv_id})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── GET: list all conversations ──
+    try:
+        me = session["user_id"]
+        conn = get_db_connection()
+        _ensure_messaging_tables(conn)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT
+                c.id,
+                u.id   AS other_id,
+                u.display_name AS other_name,
+                u.email AS other_email,
+                m.text AS last_text,
+                m.created_at AS last_time,
+                m.sender_id AS last_sender_id,
+                (
+                    SELECT COUNT(*)
+                    FROM messages msg
+                    WHERE msg.conversation_id = c.id
+                      AND msg.sender_id != %s
+                      AND msg.created_at > COALESCE(
+                          (SELECT last_read_at FROM conversation_reads
+                           WHERE user_id = %s AND conversation_id = c.id),
+                          '1970-01-01'
+                      )
+                ) AS unread_count
+            FROM conversations c
+            JOIN users u ON u.id = CASE
+                WHEN c.user1_id = %s THEN c.user2_id
+                ELSE c.user1_id
+            END
+            LEFT JOIN LATERAL (
+                SELECT text, created_at, sender_id
+                FROM messages
+                WHERE conversation_id = c.id
+                ORDER BY created_at DESC
+                LIMIT 1
+            ) m ON TRUE
+            WHERE c.user1_id = %s OR c.user2_id = %s
+            ORDER BY COALESCE(m.created_at, c.created_at) DESC
+        """, (me, me, me, me, me))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return jsonify({"conversations": [
+            {
+                "id": r[0],
+                "other_user": {"id": r[1], "name": r[2], "email": r[3]},
+                "last_message": r[4],
+                "last_time": r[5].isoformat() if r[5] else None,
+                "last_sender_id": r[6],
+                "unread_count": int(r[7]),
+            }
+            for r in rows
+        ]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/conversations/<int:conv_id>/messages", methods=["GET", "POST"])
+def conversation_messages(conv_id):
+    if "user_id" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    me = session["user_id"]
+
+    # ── POST: send a message ──
+    if request.method == "POST":
+        try:
+            text = (request.get_json().get("text") or "").strip()
+            if not text:
+                return jsonify({"error": "Message cannot be empty"}), 400
+            conn = get_db_connection()
+            _ensure_messaging_tables(conn)
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT id FROM conversations
+                WHERE id = %s AND (user1_id = %s OR user2_id = %s)
+            """, (conv_id, me, me))
+            if not cur.fetchone():
+                cur.close(); conn.close()
+                return jsonify({"error": "Not found"}), 404
+            cur.execute("""
+                INSERT INTO messages (conversation_id, sender_id, text)
+                VALUES (%s, %s, %s)
+                RETURNING id, created_at
+            """, (conv_id, me, text))
+            msg_id, created_at = cur.fetchone()
+            conn.commit(); cur.close(); conn.close()
+            return jsonify({
+                "id": msg_id,
+                "sender_id": me,
+                "sender_name": session.get("display_name"),
+                "text": text,
+                "time": created_at.isoformat(),
+                "is_mine": True,
+            }), 201
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── GET: load messages ──
+    try:
+        conn = get_db_connection()
+        _ensure_messaging_tables(conn)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id FROM conversations
+            WHERE id = %s AND (user1_id = %s OR user2_id = %s)
+        """, (conv_id, me, me))
+        if not cur.fetchone():
+            cur.close(); conn.close()
+            return jsonify({"error": "Not found"}), 404
+        cur.execute("""
+            SELECT m.id, m.sender_id, u.display_name, m.text, m.created_at
+            FROM messages m
+            JOIN users u ON u.id = m.sender_id
+            WHERE m.conversation_id = %s
+            ORDER BY m.created_at ASC
+        """, (conv_id,))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return jsonify({"messages": [
+            {
+                "id": r[0],
+                "sender_id": r[1],
+                "sender_name": r[2],
+                "text": r[3],
+                "time": r[4].isoformat() if r[4] else None,
+                "is_mine": r[1] == me,
+            }
+            for r in rows
+        ]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─── UNREAD COUNT (for nav badge) ───────────────────────────────
+
+@app.route("/api/conversations/unread", methods=["GET"])
+def get_unread_count():
+    if "user_id" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    try:
+        me = session["user_id"]
+        conn = get_db_connection()
+        _ensure_messaging_tables(conn)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT COUNT(DISTINCT msg.conversation_id)
+            FROM messages msg
+            JOIN conversations c ON c.id = msg.conversation_id
+            WHERE msg.sender_id != %s
+              AND (c.user1_id = %s OR c.user2_id = %s)
+              AND msg.created_at > COALESCE(
+                  (SELECT last_read_at FROM conversation_reads
+                   WHERE user_id = %s AND conversation_id = msg.conversation_id),
+                  '1970-01-01'
+              )
+        """, (me, me, me, me))
+        count = cur.fetchone()[0]
+        cur.close(); conn.close()
+        return jsonify({"unread_count": int(count)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/conversations/<int:conv_id>/read", methods=["POST"])
+def mark_conversation_read(conv_id):
+    """Call this when user opens a conversation."""
+    if "user_id" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    try:
+        me = session["user_id"]
+        conn = get_db_connection()
+        _ensure_messaging_tables(conn)
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO conversation_reads (user_id, conversation_id, last_read_at)
+            VALUES (%s, %s, CURRENT_TIMESTAMP)
+            ON CONFLICT (user_id, conversation_id)
+            DO UPDATE SET last_read_at = CURRENT_TIMESTAMP
+        """, (me, conv_id))
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ─── STATIC / SPA ───────────────────────────────────────────────
 
 @app.route("/")

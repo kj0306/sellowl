@@ -12,7 +12,7 @@ import ChatThread from "./components/messaging/ChatThread";
 import Notifications from "./components/shared/Notifications";
 import Offers from "./components/marketplace/Offers";
 import Chatbot from "./components/messaging/Chatbot";
-import { getMe, logout as apiLogout } from "./lib/api";
+import { getMe, logout as apiLogout, fetchUnreadCount } from "./lib/api";
 import { auth } from "./lib/firebase";
 import { signOut } from "firebase/auth";
 import { dummyOffers, dummyNotifications, getProfileById } from "./data/dummyData";
@@ -35,6 +35,7 @@ export default function App() {
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [showSignup, setShowSignup] = useState(false);
 
   const handleLoadingComplete = async () => {
@@ -45,6 +46,21 @@ export default function App() {
       setLoggedIn(false);
     }
     setLoading(false);
+  };
+
+  // Poll unread message count every 30 seconds
+  useEffect(() => {
+    if (!loggedIn) return;
+    const refresh = () => fetchUnreadCount().then((d) => setUnreadMessages(d.unread_count || 0)).catch(() => {});
+    refresh();
+    const interval = setInterval(refresh, 30000);
+    return () => clearInterval(interval);
+  }, [loggedIn]);
+
+  // Reset unread count when Messages page is opened
+  const handleOpenMessages = () => {
+    handleMessageClick(null);
+    setUnreadMessages(0);
   };
   const handleLogin = () => setLoggedIn(true);
   const handleLogout = async () => {
@@ -69,13 +85,15 @@ export default function App() {
   };
 
   const handleOpenChat = (msg) => {
-    setChatProfile(msg.profile);
+    // msg = { conversationId, profile: { id, name, email } }
+    setChatProfile({ ...msg.profile, conversationId: msg.conversationId });
     setIsNewChat(false);
     setCurrentPage("chat");
   };
 
   const handleMessageClick = (profile) => {
     if (profile) {
+      // profile = { id, name } from seller profile / listing detail
       setChatProfile(profile);
       setIsNewChat(true);
       setCurrentPage("chat");
@@ -241,10 +259,15 @@ export default function App() {
                   Home
                 </button>
                 <button
-                  onClick={() => handleMessageClick(null)}
-                  className={`px-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${currentPage === "messages" ? "text-[#d4a017] bg-[#d4a017]/10" : "text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70 hover:bg-[#d4a017]/5"}`}
+                  onClick={handleOpenMessages}
+                  className={`relative px-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${currentPage === "messages" ? "text-[#d4a017] bg-[#d4a017]/10" : "text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70 hover:bg-[#d4a017]/5"}`}
                 >
                   Messages
+                  {unreadMessages > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#d4a017] text-white text-[10px] font-bold flex items-center justify-center">
+                      {unreadMessages > 99 ? "99+" : unreadMessages}
+                    </span>
+                  )}
                 </button>
                 <button
                   onClick={() => bagItems.length > 0 && setCurrentPage("bag")}
@@ -334,6 +357,7 @@ export default function App() {
               profile={chatProfile}
               onBack={() => setCurrentPage("messages")}
               isNewChat={isNewChat}
+              conversationId={chatProfile.conversationId || null}
             />
           )}
           {currentPage === "notifications" && (

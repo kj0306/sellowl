@@ -50,3 +50,30 @@ export async function suggestPrice(title, description, category, condition) {
     body: JSON.stringify({ title, description, category, condition }),
   });
 }
+
+// Messaging
+export async function fetchConversations() {
+  return apiFetch("/api/conversations");
+}
+export async function startConversation(otherUserId) {
+  return apiFetch("/api/conversations", {
+    method: "POST",
+    body: JSON.stringify({ other_user_id: otherUserId }),
+  });
+}
+export async function fetchMessages(conversationId) {
+  return apiFetch(`/api/conversations/${conversationId}/messages`);
+}
+export async function sendMessage(conversationId, text) {
+  return apiFetch(`/api/conversations/${conversationId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}
+
+export async function fetchUnreadCount() {
+  return apiFetch("/api/conversations/unread");
+}
+export async function markConversationRead(conversationId) {
+  return apiFetch(`/api/conversations/${conversationId}/read`, { method: "POST" });
+}
