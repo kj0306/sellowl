@@ -10,7 +10,7 @@ function timeAgo(isoString) {
   return `${Math.floor(diff / 86400)}d`;
 }
 
-export default function Messages({ onBack, onOpenChat }) {
+export default function Messages({ onOpenChat }) {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
@@ -35,36 +35,34 @@ export default function Messages({ onBack, onOpenChat }) {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <div className="p-4 border-b border-[#d4a017]/20 shrink-0">
-        <div className="flex items-center gap-3">
-          <button onClick={onBack}
-            className="p-1 -ml-1 text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70 hover:text-[#1a1612] dark:hover:text-[#f8f4ed] text-lg">
-            ←
-          </button>
-          <h2 className="text-lg font-semibold text-[#1a1612] dark:text-[#f8f4ed] flex-1 font-['Playfair_Display']">
-            Messages
-          </h2>
-          {/* Total unread badge */}
-          {totalUnread > 0 && (
-            <span className="px-2 py-0.5 rounded-full bg-[#d4a017] text-white text-xs font-bold">
-              {totalUnread}
-            </span>
-          )}
-        </div>
-        <div className="mt-3">
-          <input
-            type="text"
-            placeholder="Search conversations..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg bg-[#3d2c1e]/10 dark:bg-[#f8f4ed]/10 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/40 dark:placeholder-[#f8f4ed]/40 text-sm border-0 focus:ring-2 focus:ring-[#d4a017] focus:outline-none"
-          />
+      {/* Header - centered like profile, more padding */}
+      <div className="shrink-0">
+        <div className="max-w-xl mx-auto px-4 sm:px-6 py-6 border-b border-[#d4a017]/20">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-semibold text-[#1a1612] dark:text-[#f8f4ed] flex-1 font-['Playfair_Display']">
+              Messages
+            </h2>
+            {totalUnread > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-[#d4a017] text-white text-xs font-bold">
+                {totalUnread}
+              </span>
+            )}
+          </div>
+          <div className="mt-4">
+            <input
+              type="text"
+              placeholder="Search conversations..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-lg bg-[#3d2c1e]/10 dark:bg-[#f8f4ed]/10 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/40 dark:placeholder-[#f8f4ed]/40 text-sm border-0 focus:ring-2 focus:ring-[#d4a017] focus:outline-none"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Body */}
+      {/* Body - centered, padded like profile */}
       <div className="flex-1 overflow-y-auto">
+        <div className="max-w-xl mx-auto px-4 sm:px-6">
         {loading && (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <div className="w-7 h-7 border-2 border-[#d4a017] border-t-transparent rounded-full animate-spin" />
@@ -90,7 +88,7 @@ export default function Messages({ onBack, onOpenChat }) {
           </div>
         )}
 
-        {!loading && !error && filtered.map((conv) => {
+        {!loading && !error && filtered.length > 0 && filtered.map((conv) => {
           const isUnread = conv.unread_count > 0;
           const initials = (conv.other_user.name || conv.other_user.email || "?")
             .slice(0, 2).toUpperCase();
@@ -164,6 +162,7 @@ export default function Messages({ onBack, onOpenChat }) {
             </button>
           );
         })}
+        </div>
       </div>
     </div>
   );

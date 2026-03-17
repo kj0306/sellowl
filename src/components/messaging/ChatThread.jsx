@@ -16,7 +16,7 @@ function timeLabel(isoString) {
   });
 }
 
-export default function ChatThread({ profile, onBack, isNewChat = false, conversationId: initialConvId }) {
+export default function ChatThread({ profile, isNewChat = false, conversationId: initialConvId }) {
   const [messages, setMessages]     = useState([]);
   const [convId, setConvId]         = useState(initialConvId || null);
   const [inputValue, setInputValue] = useState("");
@@ -80,30 +80,31 @@ export default function ChatThread({ profile, onBack, isNewChat = false, convers
   const initials = (profile?.name || profile?.display_name || "?").slice(0, 2).toUpperCase();
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-3 p-4 border-b border-[#3d2c1e]/20 dark:border-[#f8f4ed]/20 shrink-0">
-        <button onClick={onBack}
-          className="p-1 -ml-1 text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70 hover:text-[#1a1612] dark:hover:text-[#f8f4ed] text-xl">
-          ←
-        </button>
-        <div className="w-10 h-10 rounded-full bg-[#d4a017]/30 flex items-center justify-center text-sm font-bold text-[#b8860b] shrink-0">
-          {initials}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-[#1a1612] dark:text-[#f8f4ed] truncate">
-            {profile?.name || profile?.display_name || "User"}
-          </p>
-          {profile?.email && (
-            <p className="text-xs text-[#3d2c1e]/60 dark:text-[#f8f4ed]/60 truncate">
-              {profile.email}
-            </p>
-          )}
+    <div className="min-h-screen flex flex-col pt-14">
+      {/* Header - same size as Messages/Notifications bar */}
+      <div className="shrink-0">
+        <div className="max-w-xl mx-auto px-4 sm:px-6 py-4 border-b border-[#3d2c1e]/20 dark:border-[#f8f4ed]/20">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#d4a017]/30 flex items-center justify-center text-sm font-bold text-[#b8860b] shrink-0">
+              {initials}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-[#1a1612] dark:text-[#f8f4ed] truncate">
+                {profile?.name || profile?.display_name || "User"}
+              </p>
+              {profile?.email && (
+                <p className="text-xs text-[#3d2c1e]/60 dark:text-[#f8f4ed]/60 truncate">
+                  {profile.email}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      {/* Messages - same padding as notifications/messages tab */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-xl mx-auto px-4 sm:px-6 py-4 space-y-3">
         {loading && (
           <div className="flex justify-center py-10">
             <div className="w-6 h-6 border-2 border-[#d4a017] border-t-transparent rounded-full animate-spin" />
@@ -161,12 +162,13 @@ export default function ChatThread({ profile, onBack, isNewChat = false, convers
         )}
 
         <div ref={bottomRef} />
+        </div>
       </div>
 
-      {/* Input */}
-      <form onSubmit={handleSubmit}
-        className="p-4 border-t border-[#3d2c1e]/20 dark:border-[#f8f4ed]/20 shrink-0">
-        <div className="flex gap-2 items-center">
+      {/* Input - same padding as header */}
+      <div className="shrink-0">
+        <form onSubmit={handleSubmit} className="max-w-xl mx-auto px-4 sm:px-6 py-4 border-t border-[#3d2c1e]/20 dark:border-[#f8f4ed]/20">
+          <div className="flex gap-2 items-center">
           <input
             type="text"
             placeholder="Message…"
@@ -181,8 +183,9 @@ export default function ChatThread({ profile, onBack, isNewChat = false, convers
           >
             ➤
           </button>
-        </div>
-      </form>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

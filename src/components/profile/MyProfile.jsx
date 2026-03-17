@@ -212,7 +212,7 @@ export default function MyProfile({ onMessage, onOffers, offersCount = 0 }) {
   const initials = (user?.display_name || user?.email || "?").slice(0, 2).toUpperCase();
 
   return (
-    <div className="pb-10 max-w-2xl mx-auto">
+    <div className="pb-10 max-w-xl mx-auto px-4 sm:px-6">
       {/* Modals */}
       {showCreate && (
         <CreateListing onClose={() => setShowCreate(false)} onCreated={handleCreated} />
@@ -234,7 +234,7 @@ export default function MyProfile({ onMessage, onOffers, offersCount = 0 }) {
       )}
 
       {/* ── Profile header ── */}
-      <div className="px-4 py-6 border-b border-[#3d2c1e]/15 dark:border-[#f8f4ed]/15">
+      <div className="px-0 py-6 border-b border-[#3d2c1e]/15 dark:border-[#f8f4ed]/15">
         <div className="flex gap-5 items-start">
           <div className="w-20 h-20 rounded-full bg-[#d4a017]/25 flex items-center justify-center text-2xl font-bold text-[#b8860b] shrink-0">
             {initials}
@@ -275,7 +275,7 @@ export default function MyProfile({ onMessage, onOffers, offersCount = 0 }) {
       </div>
 
       {/* ── Grid ── */}
-      <div className="px-0 pt-1">
+      <div className="pt-1">
         {listings.length === 0 ? (
           <div className="flex flex-col items-center py-16 gap-3 text-center px-4">
             <span className="text-5xl">🦉</span>
