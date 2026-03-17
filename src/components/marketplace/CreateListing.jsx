@@ -1,5 +1,24 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import L from "leaflet";
 import { createListing, scanImageWithAI, suggestPrice } from "../../lib/api";
+
+// Fix Leaflet default icon (broken with bundlers)
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
+  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
+});
+
+function MapCenterUpdater({ center }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center) map.setView(center, 14);
+  }, [center, map]);
+  return null;
+}
 import { uploadFile, storageProviderName } from "../../lib/storage"; // ← swap provider here
 
 const CATEGORIES = ["Furniture", "Electronics", "Books", "Clothing", "Kitchen", "Sports", "Other"];
@@ -30,7 +49,76 @@ export default function CreateListing({ onClose, onCreated }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
 
+  // Location: map + autocomplete
+  const [locationQuery, setLocationQuery] = useState("");
+  const [locationSuggestions, setLocationSuggestions] = useState([]);
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
+  const locationRef = useRef(null);
+  const locationInputRef = useRef(null);
+  const [suggestionDropdownRect, setSuggestionDropdownRect] = useState(null);
+
   const set = (field, value) => setForm((p) => ({ ...p, [field]: value }));
+
+  // Location autocomplete (Photon API - free, no key)
+  useEffect(() => {
+    if (!locationQuery.trim() || locationQuery.length < 3) {
+      setLocationSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(locationQuery)}&limit=5`)
+        .then((r) => r.json())
+        .then((data) => {
+          setLocationSuggestions(data.features || []);
+          setShowLocationSuggestions(true);
+        })
+        .catch(() => setLocationSuggestions([]));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [locationQuery]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      // Don't close if clicking inside the suggestions dropdown (rendered in portal)
+      if (e.target.closest("[data-location-suggestions]")) return;
+      if (locationRef.current && !locationRef.current.contains(e.target)) {
+        setShowLocationSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (showLocationSuggestions && locationSuggestions.length > 0 && locationInputRef.current) {
+      const rect = locationInputRef.current.getBoundingClientRect();
+      setSuggestionDropdownRect({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    } else {
+      setSuggestionDropdownRect(null);
+    }
+  }, [showLocationSuggestions, locationSuggestions]);
+
+  const selectLocation = (feature) => {
+    const [lng, lat] = feature.geometry.coordinates;
+    const name =
+      feature.properties?.name ||
+      feature.properties?.street ||
+      feature.properties?.city ||
+      feature.properties?.state ||
+      "Selected location";
+    setSelectedLocation({ lat, lng, name });
+    set("neighbourhood", name);
+    setLocationQuery(name);
+    setLocationSuggestions([]);
+    setShowLocationSuggestions(false);
+  };
+
+  const clearLocation = () => {
+    setSelectedLocation(null);
+    setLocationQuery("");
+    set("neighbourhood", "");
+  };
 
   const toggleDelivery = (id) =>
     setForm((p) => {
@@ -375,14 +463,96 @@ export default function CreateListing({ onClose, onCreated }) {
                 {priceAI.error && <p className="text-xs text-red-500 mt-1.5">{priceAI.error}</p>}
               </section>
 
-              {/* ── 7. Neighbourhood ── */}
+              {/* ── 7. Location: Map + Address autocomplete ── */}
               <section>
-                <label className="text-xs font-bold text-[#3d2c1e]/60 dark:text-[#f8f4ed]/60 uppercase tracking-wider">
-                  Neighbourhood / Landmark
+                <label className="text-xs font-bold text-[#3d2c1e]/60 dark:text-[#f8f4ed]/60 uppercase tracking-wider block mb-2">
+                  Location / Neighbourhood
                 </label>
-                <input type="text" placeholder="e.g. Near Camp Randall, Langdon St, Sellery area…"
-                  value={form.neighbourhood} onChange={(e) => set("neighbourhood", e.target.value)}
-                  className="mt-1.5 w-full px-3 py-2.5 rounded-xl bg-white dark:bg-[#221e1a] border border-[#d4a017]/20 text-[#1a1612] dark:text-[#f8f4ed] text-sm focus:ring-2 focus:ring-[#d4a017] focus:outline-none" />
+                <div className="rounded-xl overflow-hidden border border-[#d4a017]/20 bg-[#3d2c1e]/5 dark:bg-[#f8f4ed]/5">
+                  {/* Map on top */}
+                  <div className="h-40">
+                    <MapContainer
+                      key={selectedLocation ? `${selectedLocation.lat}-${selectedLocation.lng}` : "default"}
+                      center={selectedLocation ? [selectedLocation.lat, selectedLocation.lng] : [39.8283, -98.5795]}
+                      zoom={selectedLocation ? 14 : 4}
+                      className="h-full w-full"
+                      scrollWheelZoom={false}
+                    >
+                      <TileLayer
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      />
+                      {selectedLocation && (
+                        <Marker position={[selectedLocation.lat, selectedLocation.lng]}>
+                          <Popup>{selectedLocation.name}</Popup>
+                        </Marker>
+                      )}
+                      <MapCenterUpdater
+                        center={selectedLocation ? [selectedLocation.lat, selectedLocation.lng] : null}
+                      />
+                    </MapContainer>
+                  </div>
+                  {/* Address input with autocomplete below */}
+                  <div className="p-3 relative" ref={locationRef}>
+                    <input
+                      ref={locationInputRef}
+                      type="text"
+                      placeholder="Type address or neighbourhood (e.g. Camp Randall, Langdon St…)"
+                      value={locationQuery || form.neighbourhood}
+                      onChange={(e) => {
+                        setLocationQuery(e.target.value);
+                        set("neighbourhood", e.target.value);
+                      }}
+                      className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-[#221e1a] border border-[#d4a017]/20 text-[#1a1612] dark:text-[#f8f4ed] text-sm placeholder-[#3d2c1e]/50 focus:ring-2 focus:ring-[#d4a017] focus:outline-none"
+                    />
+                    {(selectedLocation || form.neighbourhood) && (
+                      <button
+                        type="button"
+                        onClick={clearLocation}
+                        className="absolute right-5 top-1/2 -translate-y-1/2 text-[#3d2c1e]/60 hover:text-[#d4a017]"
+                      >
+                        ✕
+                      </button>
+                    )}
+                    {suggestionDropdownRect && createPortal(
+                      <div
+                        data-location-suggestions
+                        className="fixed z-[9999] rounded-lg border border-[#d4a017]/30 bg-[#f8f4ed] dark:bg-[#1a1612] shadow-xl py-1 max-h-48 overflow-y-auto"
+                        style={{
+                          top: suggestionDropdownRect.top,
+                          left: suggestionDropdownRect.left,
+                          width: suggestionDropdownRect.width,
+                        }}
+                      >
+                        {locationSuggestions.map((f, i) => {
+                          const name =
+                            f.properties?.name ||
+                            f.properties?.street ||
+                            f.properties?.city ||
+                            f.properties?.state ||
+                            "Location";
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => selectLocation(f)}
+                              className="w-full px-3 py-2.5 text-left text-sm text-[#1a1612] dark:text-[#f8f4ed] hover:bg-[#d4a017]/10"
+                            >
+                              {name}
+                              {f.properties?.city && f.properties?.city !== name && (
+                                <span className="text-[#3d2c1e]/60 dark:text-[#f8f4ed]/60">
+                                  {" "}
+                                  · {f.properties.city}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>,
+                      document.body
+                    )}
+                  </div>
+                </div>
               </section>
 
               {/* ── 8. Delivery Options ── */}

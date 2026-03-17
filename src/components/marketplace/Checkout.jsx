@@ -1,4 +1,4 @@
-export default function Checkout({ items, seller, onBack, onPlaceOrder, isBag }) {
+export default function Checkout({ items, seller, onPlaceOrder, isBag }) {
   const total = items.reduce((sum, item) => sum + item.price, 0);
 
   return (
@@ -40,12 +40,6 @@ export default function Checkout({ items, seller, onBack, onPlaceOrder, isBag })
           className="w-full py-3 rounded-xl bg-[#d4a017] hover:bg-[#b8860b] text-white font-semibold transition-colors"
         >
           Place Order Request
-        </button>
-        <button
-          onClick={onBack}
-          className="w-full py-2 text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70 text-sm"
-        >
-          ← Back to {isBag ? "Home" : "Profile"}
         </button>
       </div>
     </div>

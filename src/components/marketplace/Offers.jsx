@@ -1,16 +1,10 @@
 import { getProfileById } from "../../data/dummyData";
 
-export default function Offers({ offers, onAccept, onReject, onBack }) {
+export default function Offers({ offers, onAccept, onReject }) {
   return (
     <div className="min-h-screen flex flex-col">
       <div className="p-4 border-b border-[#3d2c1e]/20 dark:border-[#f8f4ed]/20 shrink-0">
         <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="p-1 -ml-1 text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70 hover:text-[#1a1612] dark:hover:text-[#f8f4ed] text-xl"
-          >
-            ←
-          </button>
           <h2 className="text-lg font-semibold text-[#1a1612] dark:text-[#f8f4ed] flex-1 font-['Playfair_Display']">
             Order Requests
           </h2>
