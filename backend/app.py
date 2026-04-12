@@ -257,9 +257,25 @@ def get_user_listings(user_id):
         _ensure_listings_table(conn)
         cur = conn.cursor()
         where = "l.user_id=%s" if include_sold else "l.user_id=%s AND l.is_available=TRUE"
-        cur.execute(f"""SELECT l.id, l.title, l.description, l.price, l.category,
-               l.condition, l.image_url, l.neighbourhood, l.delivery_option,
-               l.is_available, l.created_at, u.display_name, u.email, u.id
+        # Compute sold status from accepted orders (orders.listing_id OR order_items)
+        # so the flag is accurate even if is_available column got out of sync.
+        cur.execute(f"""
+            SELECT l.id, l.title, l.description, l.price, l.category,
+                   l.condition, l.image_url, l.neighbourhood, l.delivery_option,
+                   CASE
+                     WHEN l.is_available = FALSE THEN FALSE
+                     WHEN EXISTS (
+                       SELECT 1 FROM orders o
+                       WHERE o.listing_id = l.id AND o.status = 'accepted'
+                     ) THEN FALSE
+                     WHEN EXISTS (
+                       SELECT 1 FROM orders o
+                       JOIN order_items oi ON oi.order_id = o.id
+                       WHERE oi.listing_id = l.id AND o.status = 'accepted'
+                     ) THEN FALSE
+                     ELSE TRUE
+                   END AS is_available,
+                   l.created_at, u.display_name, u.email, u.id
             FROM listings l JOIN users u ON l.user_id = u.id
             WHERE {where} ORDER BY l.created_at DESC""",
             (user_id,))

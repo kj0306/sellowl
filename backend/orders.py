@@ -606,16 +606,33 @@ def update_order(order_id: int):
             prefix = "[Order accepted]" if new_status == "accepted" else "[Order declined]"
             _send_order_message(conn, cur, me, buyer_id, f"{prefix} {seller_note}")
 
-        # On accept: mark listing unavailable + auto-reject other pending orders
+        # On accept: mark ALL listings in the order unavailable + auto-reject
+        # other pending orders for those listings.
         if new_status == "accepted":
-            cur.execute("SELECT listing_id FROM orders WHERE id = %s", (order_id,))
-            acc = cur.fetchone()
-            if acc and acc[0]:
-                listing_id = acc[0]
+            # Collect listing IDs: prefer order_items (covers both single and
+            # multi-item orders), fall back to the denormalised listing_id column.
+            cur.execute(
+                "SELECT DISTINCT listing_id FROM order_items WHERE order_id = %s",
+                (order_id,)
+            )
+            listing_ids_to_close = [r[0] for r in cur.fetchall()]
+
+            # Fallback: if order_items is empty, use the shortcut column
+            if not listing_ids_to_close:
+                cur.execute("SELECT listing_id FROM orders WHERE id = %s", (order_id,))
+                acc = cur.fetchone()
+                if acc and acc[0]:
+                    listing_ids_to_close = [acc[0]]
+
+            for listing_id in listing_ids_to_close:
+                # Mark listing as sold
                 cur.execute(
                     "UPDATE listings SET is_available = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
                     (listing_id,)
                 )
+                log.info("listing.marked_sold", listing_id=listing_id, accepted_order_id=order_id)
+
+                # Auto-reject other pending orders for this listing
                 cur.execute(
                     "SELECT id, buyer_id FROM orders WHERE listing_id = %s AND status = %s AND id != %s",
                     (listing_id, "pending", order_id)
@@ -632,6 +649,28 @@ def update_order(order_id: int):
                         metadata={"reason": "listing_sold_to_another_buyer", "accepted_order_id": order_id},
                     )
                     log.info("order.auto_rejected", order_id=sib_id, reason="listing_sold", accepted_order_id=order_id)
+
+                # Also auto-reject via order_items for multi-item orders whose
+                # orders table listing_id is NULL
+                cur.execute(
+                    """SELECT DISTINCT o.id, o.buyer_id
+                       FROM orders o
+                       JOIN order_items oi ON oi.order_id = o.id
+                       WHERE oi.listing_id = %s AND o.status = 'pending' AND o.id != %s""",
+                    (listing_id, order_id)
+                )
+                for sib_id, sib_buyer_id in cur.fetchall():
+                    cur.execute(
+                        "UPDATE orders SET status = %s, responded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP, seller_note = %s WHERE id = %s",
+                        ("rejected", "Item has been sold to another buyer.", sib_id)
+                    )
+                    _write_event(
+                        cur, sib_id, "status_changed",
+                        actor_id=me, actor_role="seller",
+                        old_status="pending", new_status="rejected",
+                        metadata={"reason": "listing_sold_to_another_buyer", "accepted_order_id": order_id},
+                    )
+                    log.info("order.auto_rejected_via_items", order_id=sib_id, listing_id=listing_id, accepted_order_id=order_id)
 
 
         conn.commit()
