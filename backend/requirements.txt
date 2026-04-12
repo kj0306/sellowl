@@ -5,5 +5,6 @@ firebase-admin>=6.5.0
 psycopg2-binary>=2.9.9
 python-dotenv>=1.0.0
 requests>=2.31.0
+APScheduler>=3.10.0
 # anthropic>=0.20.0   # not needed — using Groq (free). Re-enable if switching to Claude via Bedrock.
 # boto3>=1.34.0       # future: uncomment when switching to AWS Bedrock

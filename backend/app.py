@@ -6,6 +6,10 @@ from config import Config
 from firebase_auth import init_firebase, verify_id_token, check_email_domain
 from db import get_db_connection, init_db
 from ai_provider import ai   # ← swap AI backend via AI_PROVIDER env var
+from logger import get_logger
+from orders import orders_bp, expire_pending_orders
+
+log = get_logger(__name__)
 
 app = Flask(__name__, static_folder="dist", static_url_path="")
 app.config.from_object(Config)
@@ -15,8 +19,53 @@ if os.environ.get("FRONTEND_URL"):
     _cors_origins.append(os.environ["FRONTEND_URL"])
 CORS(app, origins=_cors_origins, supports_credentials=True)
 
+# Register blueprints
+app.register_blueprint(orders_bp)
+
 init_firebase()
 init_db()
+
+# Run database migrations on startup
+def _run_migrations():
+    """Apply any pending SQL migrations before serving traffic."""
+    try:
+        # Import here to avoid circular deps at module level
+        import sys
+        sys.path.insert(0, os.path.dirname(__file__))
+        from migrate import cmd_apply, _connection_url
+        import psycopg2 as _pg
+        conn = _pg.connect(_connection_url())
+        conn.autocommit = False
+        cmd_apply(conn)
+        conn.close()
+        log.info("app.startup.migrations_ok")
+    except Exception as exc:
+        log.error("app.startup.migrations_failed", exc=str(exc))
+
+_run_migrations()
+
+# ── APScheduler: order expiry job ─────────────────────────────────────────────
+def _start_scheduler():
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        scheduler = BackgroundScheduler(timezone="UTC")
+        # Run expiry scan every 15 minutes
+        scheduler.add_job(
+            expire_pending_orders,
+            trigger="interval",
+            minutes=15,
+            id="order_expiry",
+            replace_existing=True,
+            max_instances=1,          # never run two scans at once
+        )
+        scheduler.start()
+        log.info("app.scheduler.started", job="order_expiry", interval_minutes=15)
+    except ImportError:
+        log.warning("app.scheduler.skipped", reason="apscheduler not installed — add it to requirements.txt")
+    except Exception as exc:
+        log.error("app.scheduler.error", exc=str(exc))
+
+_start_scheduler()
 
 # ─── AUTH ────────────────────────────────────────────────────────
 
@@ -203,14 +252,16 @@ def get_listing(listing_id):
 @app.route("/api/users/<int:user_id>/listings", methods=["GET"])
 def get_user_listings(user_id):
     try:
+        include_sold = request.args.get("include_sold") == "true"
         conn = get_db_connection()
         _ensure_listings_table(conn)
         cur = conn.cursor()
-        cur.execute("""SELECT l.id, l.title, l.description, l.price, l.category,
+        where = "l.user_id=%s" if include_sold else "l.user_id=%s AND l.is_available=TRUE"
+        cur.execute(f"""SELECT l.id, l.title, l.description, l.price, l.category,
                l.condition, l.image_url, l.neighbourhood, l.delivery_option,
                l.is_available, l.created_at, u.display_name, u.email, u.id
             FROM listings l JOIN users u ON l.user_id = u.id
-            WHERE l.user_id=%s AND l.is_available=TRUE ORDER BY l.created_at DESC""",
+            WHERE {where} ORDER BY l.created_at DESC""",
             (user_id,))
         rows = cur.fetchall()
         cur.close(); conn.close()

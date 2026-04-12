@@ -77,3 +77,56 @@ export async function fetchUnreadCount() {
 export async function markConversationRead(conversationId) {
   return apiFetch(`/api/conversations/${conversationId}/read`, { method: "POST" });
 }
+
+// ── Orders ────────────────────────────────────────────────────────────────────
+
+/** Buyer places an order request for one or more listings from the same seller. */
+export async function placeOrder({ listingIds, buyerNote = "" }) {
+  return apiFetch("/api/orders", {
+    method: "POST",
+    body: JSON.stringify({ listing_ids: listingIds, buyer_note: buyerNote }),
+  });
+}
+
+/** Seller view — orders placed for their listings. */
+export async function fetchIncomingOrders(status = null) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiFetch(`/api/orders/incoming${qs}`);
+}
+
+/** Buyer view — orders the current user has placed. */
+export async function fetchOutgoingOrders(status = null) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiFetch(`/api/orders/outgoing${qs}`);
+}
+
+/** Single order detail (buyer or seller). */
+export async function fetchOrder(orderId) {
+  return apiFetch(`/api/orders/${orderId}`);
+}
+
+/**
+ * Transition an order.
+ * Seller: action = "accept" | "reject"  (optionally sellerNote)
+ * Buyer:  action = "cancel"             (optionally cancellationReason)
+ */
+export async function updateOrder(orderId, { action, sellerNote = "", cancellationReason = "" }) {
+  return apiFetch(`/api/orders/${orderId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      action,
+      seller_note: sellerNote,
+      cancellation_reason: cancellationReason,
+    }),
+  });
+}
+
+/** Pending order count for the seller navbar badge. */
+export async function fetchPendingOrderCount() {
+  return apiFetch("/api/orders/pending-count");
+}
+
+/** Fetch all listings for a user including sold ones (for MyProfile). */
+export async function fetchUserAllListings(userId) {
+  return apiFetch(`/api/users/${userId}/listings?include_sold=true`);
+}

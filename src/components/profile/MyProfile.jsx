@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getMe, fetchUserListings, deleteListing } from "../../lib/api";
+import { getMe, fetchUserAllListings, deleteListing } from "../../lib/api";
 import CreateListing from "../marketplace/CreateListing";
 
 // ─── Delete Confirmation Sheet ───────────────────────────────────
@@ -161,7 +161,7 @@ export default function MyProfile({ onMessage, onOffers, offersCount = 0 }) {
     try {
       const meData = await getMe();
       setUser(meData.user);
-      const listingsData = await fetchUserListings(meData.user.id);
+      const listingsData = await fetchUserAllListings(meData.user.id);
       setListings(listingsData.listings || []);
     } catch (e) {
       setError(e.message);
@@ -258,15 +258,15 @@ export default function MyProfile({ onMessage, onOffers, offersCount = 0 }) {
             className="flex-1 py-2.5 rounded-xl bg-[#d4a017] text-white text-sm font-bold hover:bg-[#b8860b] transition-colors">
             + New Listing
           </button>
-          {offersCount > 0 && (
-            <button onClick={onOffers}
-              className="px-4 py-2.5 rounded-xl border border-[#d4a017] text-[#d4a017] text-sm font-semibold hover:bg-[#d4a017]/10 transition-colors relative">
-              Offers
+          <button onClick={onOffers}
+            className="px-4 py-2.5 rounded-xl border border-[#d4a017] text-[#d4a017] text-sm font-semibold hover:bg-[#d4a017]/10 transition-colors relative">
+            Offers
+            {offersCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#d4a017] text-white text-[10px] font-bold flex items-center justify-center">
                 {offersCount}
               </span>
-            </button>
-          )}
+            )}
+          </button>
           <button onClick={onMessage}
             className="px-4 py-2.5 rounded-xl border border-[#3d2c1e]/20 dark:border-[#f8f4ed]/20 text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70 text-sm font-semibold hover:border-[#d4a017]/40 transition-colors">
             Messages
@@ -296,10 +296,19 @@ export default function MyProfile({ onMessage, onOffers, offersCount = 0 }) {
               >
                 {listing.image_url ? (
                   <img src={listing.image_url} alt={listing.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
+                    className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-200 ${!listing.is_available ? "opacity-40 grayscale" : ""}`} />
                 ) : (
                   <div className="w-full h-full bg-[#3d2c1e]/8 dark:bg-[#f8f4ed]/8 flex items-center justify-center">
                     <span className="text-2xl opacity-30">📦</span>
+                  </div>
+                )}
+
+                {/* SOLD stamp overlay */}
+                {!listing.is_available && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="rotate-[-20deg] border-4 border-red-500 rounded-lg px-3 py-1">
+                      <p className="text-red-500 font-black text-lg tracking-widest">SOLD</p>
+                    </div>
                   </div>
                 )}
 
@@ -310,12 +319,14 @@ export default function MyProfile({ onMessage, onOffers, offersCount = 0 }) {
                   </p>
                 </div>
 
-                {/* Hover overlay */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                  <span className="text-white text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity drop-shadow bg-black/40 px-2 py-1 rounded-full">
-                    View
-                  </span>
-                </div>
+                {/* Hover overlay — only for available listings */}
+                {listing.is_available && (
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                    <span className="text-white text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity drop-shadow bg-black/40 px-2 py-1 rounded-full">
+                      View
+                    </span>
+                  </div>
+                )}
 
                 {/* Quick delete — top right corner, visible on hover */}
                 <button

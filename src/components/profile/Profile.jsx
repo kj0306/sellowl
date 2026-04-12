@@ -125,7 +125,7 @@ function ListingDetail({ listing, seller, onClose, onCheckout, onAddToBag, onMes
 
         {/* CTA buttons */}
         <div className="px-4 py-3 border-t border-[#d4a017]/20 shrink-0 flex gap-2">
-          {onAddToBag && (
+          {onAddToBag && !isOwnProfile && (
             <button
               onClick={() => { onAddToBag([listing], { id: listing.seller_id, name: listing.seller_name }); onClose(); }}
               className="flex-1 py-3 rounded-xl border-2 border-[#d4a017] text-[#d4a017] font-semibold text-sm hover:bg-[#d4a017]/10 transition-colors"
@@ -134,7 +134,8 @@ function ListingDetail({ listing, seller, onClose, onCheckout, onAddToBag, onMes
             </button>
           )}
           <button
-            onClick={() => { onCheckout([listing], { id: listing.seller_id, name: listing.seller_name }); onClose(); }}
+            disabled={isOwnProfile}
+            onClick={() => { if (!isOwnProfile) { onCheckout([listing], { id: listing.seller_id, name: listing.seller_name }); onClose(); } }}
             className="flex-1 py-3 rounded-xl bg-[#d4a017] hover:bg-[#b8860b] text-white font-semibold text-sm transition-colors"
           >
             Buy Now
@@ -146,7 +147,8 @@ function ListingDetail({ listing, seller, onClose, onCheckout, onAddToBag, onMes
 }
 
 // ─── Profile Page ────────────────────────────────────────────────
-export default function Profile({ profileId, onMessage, onCheckout, onAddToBag }) {
+export default function Profile({ profileId, currentUserId, onMessage, onCheckout, onAddToBag }) {
+  const isOwnProfile = currentUserId && String(profileId) === String(currentUserId);
   const [listings, setListings]       = useState([]);
   const [sellerInfo, setSellerInfo]   = useState(null);
   const [loading, setLoading]         = useState(true);
@@ -350,7 +352,7 @@ export default function Profile({ profileId, onMessage, onCheckout, onAddToBag }
             >
               {selectedItems.length === listings.length ? "Deselect All" : "Select All"}
             </button>
-            {onAddToBag && (
+            {onAddToBag && !isOwnProfile && (
               <button
                 onClick={() => onAddToBag(selectedItems, sellerInfo)}
                 className="flex-1 py-2.5 rounded-lg border-2 border-[#d4a017] text-[#d4a017] font-medium text-sm hover:bg-[#d4a017]/10 transition-colors"

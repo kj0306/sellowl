@@ -13,11 +13,12 @@ import Messages from "./components/messaging/Messages";
 import ChatThread from "./components/messaging/ChatThread";
 import Notifications from "./components/shared/Notifications";
 import Offers from "./components/marketplace/Offers";
+import MyOrders from "./components/marketplace/MyOrders";
 import Chatbot from "./components/messaging/Chatbot";
-import { getMe, logout as apiLogout, fetchUnreadCount } from "./lib/api";
+import { getMe, logout as apiLogout, fetchUnreadCount, fetchPendingOrderCount } from "./lib/api";
 import { auth } from "./lib/firebase";
 import { signOut } from "firebase/auth";
-import { dummyOffers, dummyNotifications, getProfileById } from "./data/dummyData";
+import { dummyNotifications } from "./data/dummyData";
 
 export default function App() {
   const navigate = useNavigate();
@@ -29,7 +30,8 @@ export default function App() {
   const [bagItems, setBagItems] = useState([]);
   const [bagSeller, setBagSeller] = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [offers, setOffers] = useState(dummyOffers);
+  const [pendingOffersCount, setPendingOffersCount] = useState(0);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [notifications, setNotifications] = useState(dummyNotifications);
   const [darkMode, setDarkMode] = useState(() => {
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -71,12 +73,14 @@ export default function App() {
   const isMyProfile = path === "/my-profile";
   const isNotifications = path === "/notifications";
   const isOffers = path === "/offers";
+  const isOrders = path === "/orders";
   const isBag = path === "/bag";
   const isCheckout = path === "/checkout";
 
   const handleLoadingComplete = async () => {
     try {
-      await getMe();
+      const me = await getMe();
+      setCurrentUserId(me?.user?.id || null);
       setLoggedIn(true);
     } catch {
       setLoggedIn(false);
@@ -90,6 +94,18 @@ export default function App() {
     const refresh = () => fetchUnreadCount().then((d) => setUnreadMessages(d.unread_count || 0)).catch(() => {});
     refresh();
     const interval = setInterval(refresh, 30000);
+    return () => clearInterval(interval);
+  }, [loggedIn]);
+
+  // Poll pending order count every 60 seconds (seller nav badge)
+  useEffect(() => {
+    if (!loggedIn) return;
+    const refresh = () =>
+      fetchPendingOrderCount()
+        .then((d) => setPendingOffersCount(d.pending_count || 0))
+        .catch(() => {});
+    refresh();
+    const interval = setInterval(refresh, 60000);
     return () => clearInterval(interval);
   }, [loggedIn]);
 
@@ -152,65 +168,36 @@ export default function App() {
     navigate("/checkout");
   };
 
-  const handlePlaceOrder = (items, seller) => {
-    const orderItems = items ?? checkoutItems;
-    const orderSeller = seller ?? checkoutSeller;
-    setCheckoutLoading(true);
-    setTimeout(() => {
-      setCheckoutLoading(false);
-      setCheckoutItems(null);
-      setCheckoutSeller(null);
-      setBagItems([]);
-      setBagSeller(null);
-      setNotifications((prev) => [
-        {
-          id: Date.now(),
-          type: "order_sent",
-          fromId: orderSeller?.id,
-          message: `Order request sent to ${orderSeller?.name}. Waiting for response.`,
-          time: "Just now",
-          read: false,
-        },
-        ...prev,
-      ]);
-      navigate("/");
-    }, 2500);
-  };
-
-  const handleAcceptOffer = (offer) => {
-    const buyer = getProfileById(offer.buyerId);
-    setOffers((prev) =>
-      prev.map((o) => (o.id === offer.id ? { ...o, status: "accepted" } : o))
-    );
+  // Called by Checkout after successful API order placement
+  const handleOrderSuccess = (orderId) => {
+    const orderSeller = checkoutSeller || bagSeller;
+    setCheckoutItems(null);
+    setCheckoutSeller(null);
+    setBagItems([]);
+    setBagSeller(null);
     setNotifications((prev) => [
       {
         id: Date.now(),
-        type: "offer_accepted",
-        fromId: offer.buyerId,
-        message: `You accepted ${buyer?.name}'s order request. They have been notified.`,
+        type: "order_sent",
+        orderId,
+        message: `Order request sent to ${orderSeller?.name || "seller"}. They have 3 days to respond.`,
         time: "Just now",
         read: false,
       },
       ...prev,
     ]);
+    navigate("/");
   };
 
-  const handleRejectOffer = (offer) => {
-    const buyer = getProfileById(offer.buyerId);
-    setOffers((prev) =>
-      prev.map((o) => (o.id === offer.id ? { ...o, status: "rejected" } : o))
-    );
-    setNotifications((prev) => [
-      {
-        id: Date.now(),
-        type: "offer_rejected",
-        fromId: offer.buyerId,
-        message: `You rejected ${buyer?.name}'s order request. They have been notified.`,
-        time: "Just now",
-        read: false,
-      },
-      ...prev,
-    ]);
+  const handleOrderError = (errMsg) => {
+    // Checkout shows its own inline error; we log here for diagnostics
+    console.error("[App] order placement failed:", errMsg);
+  };
+
+  // Offers.jsx now handles its own accept/reject via the API.
+  // This callback lets it bubble the updated pending count back up for the nav badge.
+  const handlePendingCountChange = (count) => {
+    setPendingOffersCount(count);
   };
 
   const toggleDarkMode = () => {
@@ -226,7 +213,6 @@ export default function App() {
   }, [darkMode]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
-  const pendingOffersCount = offers.filter((o) => o.status === "pending").length;
 
   if (loading) {
     return <LoadingScreen onComplete={handleLoadingComplete} />;
@@ -305,6 +291,23 @@ export default function App() {
                       {unreadMessages > 99 ? "99+" : unreadMessages}
                     </span>
                   )}
+                </button>
+                <button
+                  onClick={() => navigate("/offers")}
+                  className={`relative p-2 rounded-lg text-sm font-medium transition-colors ${isOffers ? "text-[#d4a017] bg-[#d4a017]/10" : "text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70 hover:bg-[#d4a017]/5"}`}
+                >
+                  Offers
+                  {pendingOffersCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#d4a017] text-white text-[10px] font-bold flex items-center justify-center">
+                      {pendingOffersCount > 99 ? "99+" : pendingOffersCount}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => navigate("/orders")}
+                  className={`relative p-2 rounded-lg text-sm font-medium transition-colors ${isOrders ? "text-[#d4a017] bg-[#d4a017]/10" : "text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70 hover:bg-[#d4a017]/5"}`}
+                >
+                  Orders
                 </button>
                 <button
                   onClick={() => bagItems.length > 0 && navigate("/bag")}
@@ -389,6 +392,7 @@ export default function App() {
           {isProfile && profileId && (
             <Profile
               profileId={profileId}
+              currentUserId={currentUserId}
               onMessage={(p) => handleMessageClick(p)}
               onCheckout={handleCheckout}
               onAddToBag={handleAddToBag}
@@ -406,7 +410,8 @@ export default function App() {
               <Checkout
                 items={bagItems}
                 seller={bagSeller}
-                onPlaceOrder={() => handlePlaceOrder(bagItems, bagSeller)}
+                onSuccess={handleOrderSuccess}
+                onError={handleOrderError}
                 isBag
               />
             </div>
@@ -416,7 +421,8 @@ export default function App() {
               <Checkout
                 items={checkoutItems}
                 seller={checkoutSeller}
-                onPlaceOrder={handlePlaceOrder}
+                onSuccess={handleOrderSuccess}
+                onError={handleOrderError}
               />
             </div>
           )}
@@ -443,11 +449,10 @@ export default function App() {
           )}
           {isOffers && (
             <Offers
-              offers={offers}
-              onAccept={handleAcceptOffer}
-              onReject={handleRejectOffer}
+              onPendingCountChange={handlePendingCountChange}
             />
           )}
+          {isOrders && <MyOrders />}
         </main>
 
         {/* Floating chatbot - visible when logged in */}
