@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { fetchUserListings } from "../../lib/api";
+import { fetchUserAllListings } from "../../lib/api";
 
 // ─── Listing Detail Modal ────────────────────────────────────────
-function ListingDetail({ listing, seller, onClose, onCheckout, onAddToBag, onMessage }) {
+function ListingDetail({ listing, seller, onClose, onCheckout, onAddToBag, onMessage, isOwnProfile }) {
   if (!listing) return null;
   const deliveryParts = (listing.delivery_option || "pickup").split(",");
   const hasPickup   = deliveryParts.includes("pickup");
@@ -125,21 +125,30 @@ function ListingDetail({ listing, seller, onClose, onCheckout, onAddToBag, onMes
 
         {/* CTA buttons */}
         <div className="px-4 py-3 border-t border-[#d4a017]/20 shrink-0 flex gap-2">
-          {onAddToBag && !isOwnProfile && (
-            <button
-              onClick={() => { onAddToBag([listing], { id: listing.seller_id, name: listing.seller_name }); onClose(); }}
-              className="flex-1 py-3 rounded-xl border-2 border-[#d4a017] text-[#d4a017] font-semibold text-sm hover:bg-[#d4a017]/10 transition-colors"
-            >
-              Add to Bag
-            </button>
+          {listing.is_available === false ? (
+            <div className="flex-1 flex items-center justify-center gap-3 py-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+              <img src="/sold-stamp.svg" alt="Sold" className="w-8 h-8 shrink-0" />
+              <span className="text-sm font-bold text-red-600 dark:text-red-400">This item has been sold</span>
+            </div>
+          ) : (
+            <>
+              {onAddToBag && !isOwnProfile && (
+                <button
+                  onClick={() => { onAddToBag([listing], { id: listing.seller_id, name: listing.seller_name }); onClose(); }}
+                  className="flex-1 py-3 rounded-xl border-2 border-[#d4a017] text-[#d4a017] font-semibold text-sm hover:bg-[#d4a017]/10 transition-colors"
+                >
+                  Add to Bag
+                </button>
+              )}
+              <button
+                disabled={isOwnProfile}
+                onClick={() => { if (!isOwnProfile) { onCheckout([listing], { id: listing.seller_id, name: listing.seller_name }); onClose(); } }}
+                className="flex-1 py-3 rounded-xl bg-[#d4a017] hover:bg-[#b8860b] text-white font-semibold text-sm transition-colors"
+              >
+                Buy Now
+              </button>
+            </>
           )}
-          <button
-            disabled={isOwnProfile}
-            onClick={() => { if (!isOwnProfile) { onCheckout([listing], { id: listing.seller_id, name: listing.seller_name }); onClose(); } }}
-            className="flex-1 py-3 rounded-xl bg-[#d4a017] hover:bg-[#b8860b] text-white font-semibold text-sm transition-colors"
-          >
-            Buy Now
-          </button>
         </div>
       </div>
     </div>
@@ -161,7 +170,7 @@ export default function Profile({ profileId, currentUserId, onMessage, onCheckou
     if (!profileId) return;
     setLoading(true);
     setError(null);
-    fetchUserListings(profileId)
+    fetchUserAllListings(profileId)
       .then((data) => {
         const items = data.listings || [];
         setListings(items);
@@ -179,6 +188,7 @@ export default function Profile({ profileId, currentUserId, onMessage, onCheckou
   }, [profileId]);
 
   const toggleItem = (listing) => {
+    if (listing.is_available === false) return; // can't select sold items
     setSelectedItems((prev) =>
       prev.some((p) => p.id === listing.id)
         ? prev.filter((p) => p.id !== listing.id)
@@ -230,6 +240,7 @@ export default function Profile({ profileId, currentUserId, onMessage, onCheckou
           onCheckout={onCheckout}
           onAddToBag={onAddToBag}
           onMessage={onMessage}
+          isOwnProfile={isOwnProfile}
         />
       )}
 
@@ -288,13 +299,14 @@ export default function Profile({ profileId, currentUserId, onMessage, onCheckou
           <div className="grid grid-cols-3 gap-0.5">
             {listings.map((listing) => {
               const isSelected = selectedItems.some((p) => p.id === listing.id);
+              const isSold = listing.is_available === false;
               return (
                 <button
                   key={listing.id}
-                  onClick={() => handleGridTap(listing)}
+                  onClick={() => !isSold && handleGridTap(listing)}
                   className={`aspect-square relative overflow-hidden group ${
                     isSelected ? "ring-4 ring-[#d4a017] ring-inset" : ""
-                  }`}
+                  } ${isSold ? "cursor-default" : ""}`}
                 >
                   {listing.image_url ? (
                     <img
@@ -327,8 +339,19 @@ export default function Profile({ profileId, currentUserId, onMessage, onCheckou
                     </p>
                   </div>
 
-                  {/* Tap hint when not in select mode */}
-                  {!selectMode && (
+                  {/* SOLD stamp overlay */}
+                  {isSold && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <img
+                        src="/sold-stamp.svg"
+                        alt="Sold"
+                        className="w-3/5 max-w-[96px] drop-shadow-lg select-none pointer-events-none"
+                      />
+                    </div>
+                  )}
+
+                  {/* Tap hint when not in select mode and not sold */}
+                  {!selectMode && !isSold && (
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors flex items-center justify-center">
                       <span className="text-white text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity drop-shadow bg-black/40 px-2 py-1 rounded-full">
                         View details

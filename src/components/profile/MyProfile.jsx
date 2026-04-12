@@ -130,14 +130,21 @@ function MyListingDetail({ listing, onClose, onDelete }) {
           </div>
         </div>
 
-        {/* Remove listing button */}
+        {/* Remove listing button / SOLD banner */}
         <div className="px-4 py-3 border-t border-[#d4a017]/20 shrink-0">
-          <button
-            onClick={() => { onClose(); onDelete(listing); }}
-            className="w-full py-3 rounded-xl border-2 border-red-400 text-red-500 font-semibold text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-          >
-            🗑 Remove this listing
-          </button>
+          {listing.is_available !== true ? (
+            <div className="flex items-center justify-center gap-3 py-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+              <img src="/SOLD.png" alt="Sold" className="w-10 h-auto shrink-0" />
+              <span className="text-sm font-bold text-red-600 dark:text-red-400">This item has been sold</span>
+            </div>
+          ) : (
+            <button
+              onClick={() => { onClose(); onDelete(listing); }}
+              className="w-full py-3 rounded-xl border-2 border-red-400 text-red-500 font-semibold text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              🗑 Remove this listing
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -296,7 +303,7 @@ export default function MyProfile({ onMessage, onOffers, offersCount = 0 }) {
               >
                 {listing.image_url ? (
                   <img src={listing.image_url} alt={listing.title}
-                    className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-200 ${!listing.is_available ? "opacity-40 grayscale" : ""}`} />
+                    className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-200 ${listing.is_available !== true ? "opacity-40 grayscale" : ""}`} />
                 ) : (
                   <div className="w-full h-full bg-[#3d2c1e]/8 dark:bg-[#f8f4ed]/8 flex items-center justify-center">
                     <span className="text-2xl opacity-30">📦</span>
@@ -304,11 +311,13 @@ export default function MyProfile({ onMessage, onOffers, offersCount = 0 }) {
                 )}
 
                 {/* SOLD stamp overlay */}
-                {!listing.is_available && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="rotate-[-20deg] border-4 border-red-500 rounded-lg px-3 py-1">
-                      <p className="text-red-500 font-black text-lg tracking-widest">SOLD</p>
-                    </div>
+                {listing.is_available !== true && (
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <img
+                      src="/SOLD.png"
+                      alt="Sold"
+                      className="w-4/5 max-w-[140px] drop-shadow-lg select-none pointer-events-none"
+                    />
                   </div>
                 )}
 
@@ -320,7 +329,7 @@ export default function MyProfile({ onMessage, onOffers, offersCount = 0 }) {
                 </div>
 
                 {/* Hover overlay — only for available listings */}
-                {listing.is_available && (
+                {listing.is_available === true && (
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                     <span className="text-white text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity drop-shadow bg-black/40 px-2 py-1 rounded-full">
                       View

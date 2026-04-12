@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { fetchOutgoingOrders, fetchIncomingOrders, updateOrder } from "../../lib/api";
 
 // ── helpers ────────────────────────────────────────────────────────
@@ -33,6 +34,7 @@ function daysLeft(iso) {
 
 // ── Single order card ───────────────────────────────────────────
 function OrderCard({ order, role }) {
+  const navigate = useNavigate();
   const [cancelling, setCancelling] = useState(false);
   const [cancelled, setCancelled]   = useState(false);
   const meta = STATUS_META[order.status] || STATUS_META.pending;
@@ -51,7 +53,8 @@ function OrderCard({ order, role }) {
 
   if (cancelled) return null;
 
-  const otherName = role === "buyer" ? order.seller_name : order.buyer_name;
+  const otherName  = role === "buyer" ? order.seller_name : order.buyer_name;
+  const otherId    = role === "buyer" ? order.seller_id   : order.buyer_id;
   const otherLabel = role === "buyer" ? "Seller" : "Buyer";
 
   return (
@@ -96,7 +99,12 @@ function OrderCard({ order, role }) {
       <div className="px-4 py-3 border-t border-[#3d2c1e]/10 dark:border-[#f8f4ed]/10 flex items-center justify-between gap-3 flex-wrap">
         <div>
           <p className="text-xs text-[#3d2c1e]/50 dark:text-[#f8f4ed]/50">{otherLabel}</p>
-          <p className="text-sm font-semibold text-[#1a1612] dark:text-[#f8f4ed]">{otherName || "—"}</p>
+          <button
+            onClick={() => otherId && navigate(`/profile/${otherId}`)}
+            className="text-sm font-semibold text-[#1a1612] dark:text-[#f8f4ed] hover:text-[#d4a017] transition-colors underline-offset-2 hover:underline"
+          >
+            {otherName || "—"}
+          </button>
         </div>
         <div className="text-right">
           <p className="text-xs text-[#3d2c1e]/50 dark:text-[#f8f4ed]/50">Total</p>
