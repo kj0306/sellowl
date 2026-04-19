@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-leaflet";
 import L from "leaflet";
-import { fetchListings } from "../../lib/api";
+import { fetchListings, searchUsers } from "../../lib/api";
 import CreateListing from "./CreateListing";
 
 // Fix Leaflet default icon (broken with bundlers)
@@ -34,6 +34,27 @@ const RADIUS_OPTIONS = [
   { value: 50, label: "50 mi" },
   { value: 100, label: "100 mi" },
 ];
+
+/**
+ * Global search: listing title/description, category, seller profile name,
+ * seller email, and email local-part (username-style before @).
+ */
+function listingMatchesSearchQuery(listing, rawQuery) {
+  const q = rawQuery.trim().toLowerCase();
+  if (!q) return true;
+  const hay = (s) => (s || "").toLowerCase();
+  if (hay(listing.title).includes(q)) return true;
+  if (hay(listing.description).includes(q)) return true;
+  if (hay(listing.category).includes(q)) return true;
+  if (hay(listing.seller_name).includes(q)) return true;
+  const email = listing.seller_email || "";
+  if (hay(email).includes(q)) return true;
+  const at = email.indexOf("@");
+  if (at > 0 && hay(email.slice(0, at)).includes(q)) return true;
+  const nameNoSpaces = hay((listing.seller_name || "").replace(/\s+/g, ""));
+  if (nameNoSpaces.includes(q.replace(/\s+/g, ""))) return true;
+  return false;
+}
 
 // Multi-select dropdown - uses portal so dropdown is not clipped
 function MultiSelectDropdown({ label, options, selected, onToggle, selectedLabels }) {
@@ -136,6 +157,10 @@ export default function Feed({ onPostClick, onMessage, searchQuery = "" }) {
   const [priceMax, setPriceMax] = useState("");
   const [likedPosts, setLikedPosts] = useState(new Set());
 
+  const [peopleResults, setPeopleResults] = useState([]);
+  const [peopleLoading, setPeopleLoading] = useState(false);
+  const [peopleSearchError, setPeopleSearchError] = useState(null);
+
   // Location filter (sidebar - top, below New Listing)
   const [locationQuery, setLocationQuery] = useState("");
   const [locationSuggestions, setLocationSuggestions] = useState([]);
@@ -220,6 +245,30 @@ export default function Feed({ onPostClick, onMessage, searchQuery = "" }) {
     loadListings();
   }, []);
 
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setPeopleResults([]);
+      setPeopleLoading(false);
+      setPeopleSearchError(null);
+      return;
+    }
+    setPeopleLoading(true);
+    const t = setTimeout(() => {
+      searchUsers(q)
+        .then((data) => {
+          setPeopleResults(data.users || []);
+          setPeopleSearchError(null);
+        })
+        .catch((err) => {
+          setPeopleResults([]);
+          setPeopleSearchError(err.message || "People search failed.");
+        })
+        .finally(() => setPeopleLoading(false));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
   const handleCreated = () => {
     setShowCreate(false);
     loadListings();
@@ -244,17 +293,7 @@ export default function Feed({ onPostClick, onMessage, searchQuery = "" }) {
     const matchCondition =
       activeConditions.length === 0 ||
       activeConditions.includes(listing.condition);
-    const matchSearch =
-      !searchQuery ||
-      (listing.title || "")
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
-      (listing.description || "")
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
-      (listing.seller_name || "")
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
+    const matchSearch = listingMatchesSearchQuery(listing, searchQuery);
     const min = parseFloat(priceMin);
     const max = parseFloat(priceMax);
     const matchPrice =
@@ -500,6 +539,55 @@ export default function Feed({ onPostClick, onMessage, searchQuery = "" }) {
         </div>
 
         <div className="max-w-2xl mx-auto md:max-w-[42rem] w-full flex-1">
+          {searchQuery.trim().length >= 2 && (
+            <div className="border-b border-[#d4a017]/20 px-4 py-4">
+              <p className="text-xs font-semibold text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70 uppercase tracking-wide mb-3">
+                People
+              </p>
+              {peopleSearchError ? (
+                <p className="text-sm text-amber-700 dark:text-amber-400">{peopleSearchError}</p>
+              ) : peopleLoading ? (
+                <p className="text-sm text-[#3d2c1e]/50 dark:text-[#f8f4ed]/50">Searching…</p>
+              ) : peopleResults.length === 0 ? (
+                <p className="text-sm text-[#3d2c1e]/50 dark:text-[#f8f4ed]/50">
+                  No users match that search.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {peopleResults.map((u) => (
+                    <li key={u.id}>
+                      <button
+                        type="button"
+                        onClick={() => onPostClick(u.id)}
+                        className="w-full flex items-center gap-3 p-3 rounded-xl bg-[#3d2c1e]/5 dark:bg-[#f8f4ed]/5 border border-[#d4a017]/15 hover:border-[#d4a017]/40 text-left transition-colors"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-[#d4a017]/30 flex items-center justify-center text-sm font-bold text-[#b8860b] shrink-0">
+                          {(u.display_name || "?").slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-sm text-[#1a1612] dark:text-[#f8f4ed] truncate">
+                            {u.display_name || "Member"}
+                          </p>
+                          {u.email && (
+                            <p className="text-xs text-[#3d2c1e]/60 dark:text-[#f8f4ed]/60 truncate">
+                              {u.email}
+                            </p>
+                          )}
+                          {u.university && (
+                            <p className="text-xs text-[#3d2c1e]/50 dark:text-[#f8f4ed]/50 truncate">
+                              {u.university}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-[#d4a017] text-sm shrink-0">View →</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
           {loading && (
             <div className="flex flex-col items-center justify-center py-24 gap-3">
               <div className="w-8 h-8 border-2 border-[#d4a017] border-t-transparent rounded-full animate-spin" />
@@ -527,7 +615,11 @@ export default function Feed({ onPostClick, onMessage, searchQuery = "" }) {
             </div>
           )}
 
-          {!loading && !error && filteredListings.length === 0 && (
+          {!loading &&
+            !error &&
+            filteredListings.length === 0 &&
+            !(searchQuery.trim().length >= 2 &&
+              (peopleLoading || peopleResults.length > 0 || peopleSearchError)) && (
             <div className="flex flex-col items-center justify-center py-24 gap-3 px-6 text-center">
               <p className="text-4xl">🦉</p>
               <p className="text-sm font-medium text-[#1a1612] dark:text-[#f8f4ed]">
@@ -550,6 +642,17 @@ export default function Feed({ onPostClick, onMessage, searchQuery = "" }) {
               )}
             </div>
           )}
+
+          {!loading &&
+            !error &&
+            filteredListings.length === 0 &&
+            searchQuery.trim().length >= 2 &&
+            !peopleLoading &&
+            peopleResults.length > 0 && (
+              <p className="px-4 py-2 text-center text-xs text-[#3d2c1e]/55 dark:text-[#f8f4ed]/55">
+                No active listings in the feed match—open a profile above for sold items and past posts.
+              </p>
+            )}
 
           {!loading &&
             !error &&

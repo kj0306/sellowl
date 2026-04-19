@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { fetchUserAllListings } from "../../lib/api";
+import { fetchUserAllListings, fetchUserProfile } from "../../lib/api";
 
 // ─── Listing Detail Modal ────────────────────────────────────────
 function ListingDetail({ listing, seller, onClose, onCheckout, onAddToBag, onMessage, isOwnProfile }) {
@@ -171,20 +171,39 @@ export default function Profile({ profileId, currentUserId, onMessage, onCheckou
     setLoading(true);
     setError(null);
     fetchUserAllListings(profileId)
-      .then((data) => {
+      .then(async (data) => {
         const items = data.listings || [];
         setListings(items);
-        // Pull seller info from first listing
         if (items.length > 0) {
           setSellerInfo({
-            id:           items[0].seller_id,
+            id: items[0].seller_id,
             display_name: items[0].seller_name,
-            email:        items[0].seller_email,
+            email: items[0].seller_email,
           });
+        } else {
+          try {
+            const u = await fetchUserProfile(profileId);
+            if (u?.user) {
+              setSellerInfo({
+                id: u.user.id,
+                display_name: u.user.display_name,
+                email: u.user.email,
+              });
+            } else {
+              setSellerInfo(null);
+              setError("User not found");
+            }
+          } catch {
+            setSellerInfo(null);
+            setError("User not found");
+          }
         }
         setLoading(false);
       })
-      .catch((e) => { setError(e.message); setLoading(false); });
+      .catch((e) => {
+        setError(e.message);
+        setLoading(false);
+      });
   }, [profileId]);
 
   const toggleItem = (listing) => {
@@ -299,7 +318,7 @@ export default function Profile({ profileId, currentUserId, onMessage, onCheckou
           <div className="grid grid-cols-3 gap-0.5">
             {listings.map((listing) => {
               const isSelected = selectedItems.some((p) => p.id === listing.id);
-              const isSold = listing.is_available === false;
+              const isSold = listing.is_available !== true;
               return (
                 <button
                   key={listing.id}
@@ -339,13 +358,13 @@ export default function Profile({ profileId, currentUserId, onMessage, onCheckou
                     </p>
                   </div>
 
-                  {/* SOLD stamp overlay */}
+                  {/* SOLD stamp overlay (transparent SVG — listing photo stays visible) */}
                   {isSold && (
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <img
                         src="/sold-stamp.svg"
                         alt="Sold"
-                        className="w-3/5 max-w-[96px] drop-shadow-lg select-none pointer-events-none"
+                        className="w-4/5 max-w-[140px] drop-shadow-lg select-none"
                       />
                     </div>
                   )}

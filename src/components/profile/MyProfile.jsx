@@ -134,7 +134,7 @@ function MyListingDetail({ listing, onClose, onDelete }) {
         <div className="px-4 py-3 border-t border-[#d4a017]/20 shrink-0">
           {listing.is_available !== true ? (
             <div className="flex items-center justify-center gap-3 py-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-              <img src="/SOLD.png" alt="Sold" className="w-10 h-auto shrink-0" />
+              <img src="/sold-stamp.svg" alt="Sold" className="w-10 h-10 shrink-0" />
               <span className="text-sm font-bold text-red-600 dark:text-red-400">This item has been sold</span>
             </div>
           ) : (
@@ -310,13 +310,13 @@ export default function MyProfile({ onMessage, onOffers, offersCount = 0 }) {
                   </div>
                 )}
 
-                {/* SOLD stamp overlay */}
+                {/* SOLD stamp overlay (transparent SVG — listing photo stays visible) */}
                 {listing.is_available !== true && (
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <img
-                      src="/SOLD.png"
+                      src="/sold-stamp.svg"
                       alt="Sold"
-                      className="w-4/5 max-w-[140px] drop-shadow-lg select-none pointer-events-none"
+                      className="w-4/5 max-w-[140px] drop-shadow-lg select-none"
                     />
                   </div>
                 )}

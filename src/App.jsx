@@ -15,10 +15,15 @@ import Notifications from "./components/shared/Notifications";
 import Offers from "./components/marketplace/Offers";
 import MyOrders from "./components/marketplace/MyOrders";
 import Chatbot from "./components/messaging/Chatbot";
-import { getMe, logout as apiLogout, fetchUnreadCount, fetchPendingOrderCount } from "./lib/api";
+import {
+  getMe,
+  logout as apiLogout,
+  fetchUnreadCount,
+  fetchPendingOrderCount,
+  fetchNotificationCount,
+} from "./lib/api";
 import { auth } from "./lib/firebase";
 import { signOut } from "firebase/auth";
-import { dummyNotifications } from "./data/dummyData";
 
 export default function App() {
   const navigate = useNavigate();
@@ -32,7 +37,7 @@ export default function App() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [pendingOffersCount, setPendingOffersCount] = useState(0);
   const [currentUserId, setCurrentUserId] = useState(null);
-  const [notifications, setNotifications] = useState(dummyNotifications);
+  const [notifBadgeCount, setNotifBadgeCount] = useState(0);
   const [darkMode, setDarkMode] = useState(() => {
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
@@ -109,7 +114,23 @@ export default function App() {
     return () => clearInterval(interval);
   }, [loggedIn]);
 
-  // Reset unread count when Messages page is opened
+  // Poll notification badge count (order events as buyer) every 45 seconds
+  useEffect(() => {
+    if (!loggedIn) return;
+    const refresh = () =>
+      fetchNotificationCount()
+        .then((d) => setNotifBadgeCount(d.new_order_events || 0))
+        .catch(() => {});
+    refresh();
+    const interval = setInterval(refresh, 45000);
+    return () => clearInterval(interval);
+  }, [loggedIn]);
+
+  // Reset notification badge when user opens the notifications page
+  useEffect(() => {
+    if (isNotifications) setNotifBadgeCount(0);
+  }, [isNotifications]);
+
   const handleOpenMessages = () => {
     handleMessageClick(null);
     setUnreadMessages(0);
@@ -168,34 +189,18 @@ export default function App() {
     navigate("/checkout");
   };
 
-  // Called by Checkout after successful API order placement
   const handleOrderSuccess = (orderId) => {
-    const orderSeller = checkoutSeller || bagSeller;
     setCheckoutItems(null);
     setCheckoutSeller(null);
     setBagItems([]);
     setBagSeller(null);
-    setNotifications((prev) => [
-      {
-        id: Date.now(),
-        type: "order_sent",
-        orderId,
-        message: `Order request sent to ${orderSeller?.name || "seller"}. They have 3 days to respond.`,
-        time: "Just now",
-        read: false,
-      },
-      ...prev,
-    ]);
     navigate("/");
   };
 
   const handleOrderError = (errMsg) => {
-    // Checkout shows its own inline error; we log here for diagnostics
     console.error("[App] order placement failed:", errMsg);
   };
 
-  // Offers.jsx now handles its own accept/reject via the API.
-  // This callback lets it bubble the updated pending count back up for the nav badge.
   const handlePendingCountChange = (count) => {
     setPendingOffersCount(count);
   };
@@ -211,8 +216,6 @@ export default function App() {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   if (loading) {
     return <LoadingScreen onComplete={handleLoadingComplete} />;
@@ -237,10 +240,9 @@ export default function App() {
   return (
     <div className={`min-h-screen ${darkMode ? "dark" : ""}`}>
       <div className="min-h-screen bg-[#f8f4ed] dark:bg-[#1a1612] text-[#1a1612] dark:text-[#f8f4ed]">
-        {/* Top nav: Left=Sell OWL | Center=Search | Right=Home, Messages, Bag, Notifications, Mode, Profile */}
         <nav className="sticky top-0 z-20 border-b border-[#d4a017]/20 dark:border-[#d4a017]/20 bg-[#f8f4ed]/95 dark:bg-[#1a1612]/95 backdrop-blur-sm">
             <div className="flex items-center gap-4 px-4 py-2">
-              {/* Left: Sell OWL (clickable - goes to home) */}
+              {/* Left: Sell OWL */}
               <button
                 onClick={() => navigate("/")}
                 className="flex items-center gap-2 shrink-0 hover:opacity-90 transition-opacity"
@@ -248,7 +250,7 @@ export default function App() {
                 <img src="/Logos/LOGO.png" alt="" className="h-10 w-auto object-contain" />
                 <h1 className="text-lg font-bold text-[#d4a017] font-['Playfair_Display']">Sell OWL</h1>
               </button>
-              {/* Center: Search bar - takes remaining space */}
+              {/* Center: Search */}
               <div className="flex-1 min-w-0 px-2">
                 <div className="relative max-w-xl mx-auto">
                   {!searchQuery && (
@@ -260,7 +262,7 @@ export default function App() {
                   )}
                   <input
                     type="text"
-                    placeholder="Search..."
+                    placeholder="Search listings, people, categories…"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className={`w-full py-1.5 rounded-lg bg-[#3d2c1e]/10 dark:bg-[#f8f4ed]/10 text-[#1a1612] dark:text-[#f8f4ed] placeholder-[#3d2c1e]/50 text-sm border border-[#d4a017]/20 focus:ring-2 focus:ring-[#d4a017] focus:outline-none ${searchQuery ? "pl-3 pr-9" : "pl-9 pr-3"}`}
@@ -279,7 +281,7 @@ export default function App() {
                   )}
                 </div>
               </div>
-              {/* Right: Messages, Bag, Notifications, Profile dropdown - space on both sides */}
+              {/* Right: nav buttons */}
               <div className="flex items-center gap-2 shrink-0 pl-6 pr-4">
                 <button
                   onClick={handleOpenMessages}
@@ -318,11 +320,16 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => navigate("/notifications")}
-                  className={`p-2 rounded-lg text-sm font-medium transition-colors ${isNotifications ? "text-[#d4a017] bg-[#d4a017]/10" : "text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70 hover:bg-[#d4a017]/5"}`}
+                  className={`relative p-2 rounded-lg text-sm font-medium transition-colors ${isNotifications ? "text-[#d4a017] bg-[#d4a017]/10" : "text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70 hover:bg-[#d4a017]/5"}`}
                 >
-                  Notifications{unreadCount > 0 ? ` (${unreadCount})` : ""}
+                  Notifications
+                  {notifBadgeCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#d4a017] text-white text-[10px] font-bold flex items-center justify-center">
+                      {notifBadgeCount > 99 ? "99+" : notifBadgeCount}
+                    </span>
+                  )}
                 </button>
-                {/* Profile dropdown: Profile, Settings, Logout - uses portal */}
+                {/* Profile dropdown */}
                 <div className="relative" ref={profileDropdownRef}>
                   <button
                     ref={profileButtonRef}
@@ -347,28 +354,19 @@ export default function App() {
                         }}
                       >
                         <button
-                          onClick={() => {
-                            navigate("/my-profile");
-                            setProfileDropdownOpen(false);
-                          }}
+                          onClick={() => { navigate("/my-profile"); setProfileDropdownOpen(false); }}
                           className="w-full px-4 py-2.5 text-left text-sm text-[#1a1612] dark:text-[#f8f4ed] hover:bg-[#d4a017]/10"
                         >
                           Profile
                         </button>
                         <button
-                          onClick={() => {
-                            toggleDarkMode();
-                            setProfileDropdownOpen(false);
-                          }}
+                          onClick={() => { toggleDarkMode(); setProfileDropdownOpen(false); }}
                           className="w-full px-4 py-2.5 text-left text-sm text-[#1a1612] dark:text-[#f8f4ed] hover:bg-[#d4a017]/10"
                         >
                           {darkMode ? "Light mode" : "Dark mode"}
                         </button>
                         <button
-                          onClick={() => {
-                            handleLogout();
-                            setProfileDropdownOpen(false);
-                          }}
+                          onClick={() => { handleLogout(); setProfileDropdownOpen(false); }}
                           className="w-full px-4 py-2.5 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-500/10"
                         >
                           Logout
@@ -437,25 +435,13 @@ export default function App() {
               conversationId={location.state.profile.conversationId || null}
             />
           )}
-          {isNotifications && (
-            <Notifications
-              notifications={notifications}
-              onMarkRead={(id) =>
-                setNotifications((prev) =>
-                  prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-                )
-              }
-            />
-          )}
+          {isNotifications && <Notifications />}
           {isOffers && (
-            <Offers
-              onPendingCountChange={handlePendingCountChange}
-            />
+            <Offers onPendingCountChange={handlePendingCountChange} />
           )}
           {isOrders && <MyOrders />}
         </main>
 
-        {/* Floating chatbot - visible when logged in */}
         {loggedIn && !loading && !checkoutLoading && <Chatbot />}
       </div>
     </div>

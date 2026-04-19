@@ -2,11 +2,22 @@ const API_BASE = "";
 
 async function apiFetch(path, options = {}) {
   const url = `${API_BASE}${path}`;
+  const method = (options.method || "GET").toUpperCase();
+  const headers =
+    method === "GET" || method === "HEAD"
+      ? { ...options.headers }
+      : { "Content-Type": "application/json", ...options.headers };
   const res = await fetch(url, {
     ...options,
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...options.headers },
+    headers,
   });
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+  if (path.startsWith("/api") && ct.includes("text/html")) {
+    throw new Error(
+      "The app received a web page instead of API data. Restart the Flask backend and ensure the Vite proxy target (VITE_API_PROXY_TARGET) matches your server port."
+    );
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Request failed: ${res.status}`);
   return data;
@@ -40,6 +51,17 @@ export async function fetchUserListings(userId) {
   return apiFetch(`/api/users/${userId}/listings`);
 }
 
+/** Public profile (name, email, …) — works even when user has zero listings. */
+export async function fetchUserProfile(userId) {
+  return apiFetch(`/api/users/${userId}`);
+}
+
+/** Search users by name, email / username part, or university (min 2 characters). */
+export async function searchUsers(q) {
+  const qs = new URLSearchParams({ q: q.trim() });
+  return apiFetch(`/api/users/search?${qs}`);
+}
+
 // AI
 export async function scanImageWithAI(imageUrl) {
   return apiFetch("/api/ai/scan-image", { method: "POST", body: JSON.stringify({ image_url: imageUrl }) });
@@ -70,7 +92,6 @@ export async function sendMessage(conversationId, text) {
     body: JSON.stringify({ text }),
   });
 }
-
 export async function fetchUnreadCount() {
   return apiFetch("/api/conversations/unread");
 }
@@ -78,38 +99,38 @@ export async function markConversationRead(conversationId) {
   return apiFetch(`/api/conversations/${conversationId}/read`, { method: "POST" });
 }
 
+// Fetch only messages newer than afterId — used by the real-time poll in ChatThread
+export async function fetchNewMessages(conversationId, afterId) {
+  return apiFetch(`/api/conversations/${conversationId}/messages?after_id=${afterId}`);
+}
+
+// Notifications
+export async function fetchNotifications() {
+  return apiFetch("/api/notifications");
+}
+export async function fetchNotificationCount() {
+  return apiFetch("/api/notifications/count");
+}
+
 // ── Orders ────────────────────────────────────────────────────────────────────
 
-/** Buyer places an order request for one or more listings from the same seller. */
 export async function placeOrder({ listingIds, buyerNote = "" }) {
   return apiFetch("/api/orders", {
     method: "POST",
     body: JSON.stringify({ listing_ids: listingIds, buyer_note: buyerNote }),
   });
 }
-
-/** Seller view — orders placed for their listings. */
 export async function fetchIncomingOrders(status = null) {
   const qs = status ? `?status=${encodeURIComponent(status)}` : "";
   return apiFetch(`/api/orders/incoming${qs}`);
 }
-
-/** Buyer view — orders the current user has placed. */
 export async function fetchOutgoingOrders(status = null) {
   const qs = status ? `?status=${encodeURIComponent(status)}` : "";
   return apiFetch(`/api/orders/outgoing${qs}`);
 }
-
-/** Single order detail (buyer or seller). */
 export async function fetchOrder(orderId) {
   return apiFetch(`/api/orders/${orderId}`);
 }
-
-/**
- * Transition an order.
- * Seller: action = "accept" | "reject"  (optionally sellerNote)
- * Buyer:  action = "cancel"             (optionally cancellationReason)
- */
 export async function updateOrder(orderId, { action, sellerNote = "", cancellationReason = "" }) {
   return apiFetch(`/api/orders/${orderId}`, {
     method: "PATCH",
@@ -120,13 +141,9 @@ export async function updateOrder(orderId, { action, sellerNote = "", cancellati
     }),
   });
 }
-
-/** Pending order count for the seller navbar badge. */
 export async function fetchPendingOrderCount() {
   return apiFetch("/api/orders/pending-count");
 }
-
-/** Fetch all listings for a user including sold ones (for MyProfile). */
 export async function fetchUserAllListings(userId) {
   return apiFetch(`/api/users/${userId}/listings?include_sold=true`);
 }

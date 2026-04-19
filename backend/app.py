@@ -8,6 +8,7 @@ from db import get_db_connection, init_db
 from ai_provider import ai   # ← swap AI backend via AI_PROVIDER env var
 from logger import get_logger
 from orders import orders_bp, expire_pending_orders
+from notifications import notifications_bp
 
 log = get_logger(__name__)
 
@@ -21,6 +22,7 @@ CORS(app, origins=_cors_origins, supports_credentials=True)
 
 # Register blueprints
 app.register_blueprint(orders_bp)
+app.register_blueprint(notifications_bp)
 
 init_firebase()
 init_db()
@@ -29,7 +31,6 @@ init_db()
 def _run_migrations():
     """Apply any pending SQL migrations before serving traffic."""
     try:
-        # Import here to avoid circular deps at module level
         import sys
         sys.path.insert(0, os.path.dirname(__file__))
         from migrate import cmd_apply, _connection_url
@@ -49,19 +50,18 @@ def _start_scheduler():
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
         scheduler = BackgroundScheduler(timezone="UTC")
-        # Run expiry scan every 15 minutes
         scheduler.add_job(
             expire_pending_orders,
             trigger="interval",
             minutes=15,
             id="order_expiry",
             replace_existing=True,
-            max_instances=1,          # never run two scans at once
+            max_instances=1,
         )
         scheduler.start()
         log.info("app.scheduler.started", job="order_expiry", interval_minutes=15)
     except ImportError:
-        log.warning("app.scheduler.skipped", reason="apscheduler not installed — add it to requirements.txt")
+        log.warning("app.scheduler.skipped", reason="apscheduler not installed")
     except Exception as exc:
         log.error("app.scheduler.error", exc=str(exc))
 
@@ -249,6 +249,90 @@ def get_listing(listing_id):
         return jsonify({"error": str(e)}), 500
 
 
+def _row_to_public_user(r):
+    return {
+        "id": r[0],
+        "display_name": r[1],
+        "email": r[2],
+        "university": r[3] if len(r) > 3 else None,
+        "avatar_url": r[4] if len(r) > 4 else None,
+    }
+
+
+# Register /api/users/search before /api/users/<int:…> so "search" is never ambiguous.
+@app.route("/api/users/search", methods=["GET"])
+def search_users():
+    """Find users by display name, email, email local-part, or university."""
+    raw = (request.args.get("q") or "").strip()
+    if len(raw) < 2:
+        return jsonify({"users": []})
+    q = raw.replace("%", "").replace("_", "")[:80]
+    if len(q) < 2:
+        return jsonify({"users": []})
+    pattern = f"%{q}%"
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        # Prefer full row; fall back if optional columns are missing on older DBs.
+        full_sql = (
+            """SELECT id, display_name, email, university, avatar_url
+               FROM users
+               WHERE (
+                   COALESCE(display_name, '') ILIKE %s
+                   OR COALESCE(email, '') ILIKE %s
+                   OR COALESCE(split_part(COALESCE(email, ''), '@', 1), '') ILIKE %s
+                   OR (university IS NOT NULL AND university ILIKE %s)
+                 )
+               ORDER BY display_name NULLS LAST
+               LIMIT 30"""
+        )
+        minimal_sql = (
+            """SELECT id, display_name, email
+               FROM users
+               WHERE (
+                   COALESCE(display_name, '') ILIKE %s
+                   OR COALESCE(email, '') ILIKE %s
+                   OR COALESCE(split_part(COALESCE(email, ''), '@', 1), '') ILIKE %s
+                 )
+               ORDER BY display_name NULLS LAST
+               LIMIT 30"""
+        )
+        try:
+            cur.execute(full_sql, (pattern, pattern, pattern, pattern))
+            rows = cur.fetchall()
+        except psycopg2.errors.UndefinedColumn:
+            conn.rollback()
+            cur.execute(minimal_sql, (pattern, pattern, pattern))
+            rows = cur.fetchall()
+            rows = [(*r, None, None) for r in rows]
+        cur.close()
+        conn.close()
+        return jsonify({"users": [_row_to_public_user(r) for r in rows]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/users/<int:user_id>", methods=["GET"])
+def get_user_public(user_id):
+    """Public profile fields (for headers when user has no listings)."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT id, display_name, email, university, avatar_url
+               FROM users WHERE id = %s AND COALESCE(is_active, TRUE) = TRUE""",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not row:
+            return jsonify({"error": "User not found"}), 404
+        return jsonify({"user": _row_to_public_user(row)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/users/<int:user_id>/listings", methods=["GET"])
 def get_user_listings(user_id):
     try:
@@ -257,8 +341,6 @@ def get_user_listings(user_id):
         _ensure_listings_table(conn)
         cur = conn.cursor()
         where = "l.user_id=%s" if include_sold else "l.user_id=%s AND l.is_available=TRUE"
-        # Compute sold status from accepted orders (orders.listing_id OR order_items)
-        # so the flag is accurate even if is_available column got out of sync.
         cur.execute(f"""
             SELECT l.id, l.title, l.description, l.price, l.category,
                    l.condition, l.image_url, l.neighbourhood, l.delivery_option,
@@ -301,7 +383,7 @@ def delete_listing(listing_id):
         return jsonify({"error": str(e)}), 500
 
 
-# ─── AI ROUTES (provider-agnostic) ──────────────────────────────
+# ─── AI ROUTES ──────────────────────────────────────────────────
 
 @app.route("/api/ai/scan-image", methods=["POST"])
 def scan_image():
@@ -344,12 +426,6 @@ def suggest_price():
         return jsonify({"error": str(e)}), 500
 
 
-# ─── STATIC / SPA → moved to bottom of file ───
-
-
-
-
-
 # ─── MESSAGING ───────────────────────────────────────────────────
 
 def _ensure_messaging_tables(conn):
@@ -372,7 +448,6 @@ def _ensure_messaging_tables(conn):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # Tracks when each user last read each conversation
     cur.execute("""
         CREATE TABLE IF NOT EXISTS conversation_reads (
             user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -390,7 +465,6 @@ def conversations():
     if "user_id" not in session:
         return jsonify({"error": "Not authenticated"}), 401
 
-    # ── POST: start or get a conversation ──
     if request.method == "POST":
         try:
             me = session["user_id"]
@@ -413,7 +487,6 @@ def conversations():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    # ── GET: list all conversations ──
     try:
         me = session["user_id"]
         conn = get_db_connection()
@@ -478,7 +551,6 @@ def conversation_messages(conv_id):
 
     me = session["user_id"]
 
-    # ── POST: send a message ──
     if request.method == "POST":
         try:
             text = (request.get_json().get("text") or "").strip()
@@ -512,8 +584,9 @@ def conversation_messages(conv_id):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    # ── GET: load messages ──
+    # ── GET: load messages (supports ?after_id=<int> for incremental polling) ──
     try:
+        after_id = request.args.get("after_id", type=int)
         conn = get_db_connection()
         _ensure_messaging_tables(conn)
         cur = conn.cursor()
@@ -524,13 +597,24 @@ def conversation_messages(conv_id):
         if not cur.fetchone():
             cur.close(); conn.close()
             return jsonify({"error": "Not found"}), 404
-        cur.execute("""
-            SELECT m.id, m.sender_id, u.display_name, m.text, m.created_at
-            FROM messages m
-            JOIN users u ON u.id = m.sender_id
-            WHERE m.conversation_id = %s
-            ORDER BY m.created_at ASC
-        """, (conv_id,))
+
+        if after_id:
+            cur.execute("""
+                SELECT m.id, m.sender_id, u.display_name, m.text, m.created_at
+                FROM messages m
+                JOIN users u ON u.id = m.sender_id
+                WHERE m.conversation_id = %s AND m.id > %s
+                ORDER BY m.created_at ASC
+            """, (conv_id, after_id))
+        else:
+            cur.execute("""
+                SELECT m.id, m.sender_id, u.display_name, m.text, m.created_at
+                FROM messages m
+                JOIN users u ON u.id = m.sender_id
+                WHERE m.conversation_id = %s
+                ORDER BY m.created_at ASC
+            """, (conv_id,))
+
         rows = cur.fetchall()
         cur.close(); conn.close()
         return jsonify({"messages": [
@@ -548,7 +632,7 @@ def conversation_messages(conv_id):
         return jsonify({"error": str(e)}), 500
 
 
-# ─── UNREAD COUNT (for nav badge) ───────────────────────────────
+# ─── UNREAD COUNT ────────────────────────────────────────────────
 
 @app.route("/api/conversations/unread", methods=["GET"])
 def get_unread_count():
@@ -580,7 +664,6 @@ def get_unread_count():
 
 @app.route("/api/conversations/<int:conv_id>/read", methods=["POST"])
 def mark_conversation_read(conv_id):
-    """Call this when user opens a conversation."""
     if "user_id" not in session:
         return jsonify({"error": "Not authenticated"}), 401
     try:
@@ -611,6 +694,10 @@ def index():
 
 @app.route("/<path:path>")
 def serve_frontend(path):
+    # Never serve the SPA HTML for unknown API paths — avoids 200+HTML so clients
+    # don't mis-parse empty JSON and show misleading "no results" (e.g. /api/users/search).
+    if path.startswith("api/"):
+        return jsonify({"error": "Not found"}), 404
     file_path = os.path.join(app.static_folder, path)
     if os.path.exists(file_path) and os.path.isfile(file_path):
         return send_from_directory(app.static_folder, path)
