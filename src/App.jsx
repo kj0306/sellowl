@@ -20,8 +20,9 @@ import {
   logout as apiLogout,
   fetchUnreadCount,
   fetchPendingOrderCount,
-  fetchNotificationCount,
+  fetchNotifications,
 } from "./lib/api";
+import { countUnreadNotifications, NOTIF_READ_EVENT } from "./lib/notifReadState";
 import { auth } from "./lib/firebase";
 import { signOut } from "firebase/auth";
 
@@ -114,19 +115,31 @@ export default function App() {
     return () => clearInterval(interval);
   }, [loggedIn]);
 
-  // Poll notification badge count (order events as buyer) every 45 seconds
+  // Notification badge = unread only (same rules as /notifications + read ids in localStorage).
   useEffect(() => {
     if (!loggedIn) return;
+
+    const applyBadge = (notifications) => {
+      const unread = countUnreadNotifications(notifications);
+      setNotifBadgeCount(isNotifications ? 0 : unread);
+    };
+
     const refresh = () =>
-      fetchNotificationCount()
-        .then((d) => setNotifBadgeCount(d.new_order_events || 0))
+      fetchNotifications()
+        .then((d) => applyBadge(d.notifications || []))
         .catch(() => {});
+
     refresh();
     const interval = setInterval(refresh, 45000);
-    return () => clearInterval(interval);
-  }, [loggedIn]);
+    const onRead = () => refresh();
+    window.addEventListener(NOTIF_READ_EVENT, onRead);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(NOTIF_READ_EVENT, onRead);
+    };
+  }, [loggedIn, isNotifications]);
 
-  // Reset notification badge when user opens the notifications page
+  // Clear badge immediately when opening the notifications page
   useEffect(() => {
     if (isNotifications) setNotifBadgeCount(0);
   }, [isNotifications]);

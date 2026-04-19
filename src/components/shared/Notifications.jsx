@@ -1,22 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchNotifications } from "../../lib/api";
-
-const NOTIF_READ_KEY = "sellowl_notif_read_ids";
-
-function getReadIds() {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(NOTIF_READ_KEY) || "[]"));
-  } catch {
-    return new Set();
-  }
-}
-
-function saveReadIds(set) {
-  try {
-    localStorage.setItem(NOTIF_READ_KEY, JSON.stringify([...set]));
-  } catch {}
-}
+import {
+  getNotifReadIds,
+  saveNotifReadIds,
+  isNotificationUnread,
+} from "../../lib/notifReadState";
 
 const TYPE_META = {
   message:          { icon: "💬", accent: "#185FA5", bg: "#E6F1FB" },
@@ -45,7 +34,7 @@ export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [readIds, setReadIds] = useState(getReadIds);
+  const [readIds, setReadIds] = useState(() => getNotifReadIds());
 
   useEffect(() => {
     fetchNotifications()
@@ -60,7 +49,7 @@ export default function Notifications() {
     setReadIds((prev) => {
       const next = new Set(prev);
       notifications.forEach((n) => next.add(n.id));
-      saveReadIds(next);
+      saveNotifReadIds(next);
       return next;
     });
   }, [notifications]);
@@ -70,7 +59,7 @@ export default function Notifications() {
     setReadIds((prev) => {
       const next = new Set(prev);
       next.add(notif.id);
-      saveReadIds(next);
+      saveNotifReadIds(next);
       return next;
     });
 
@@ -86,7 +75,18 @@ export default function Notifications() {
     }
   };
 
-  const unreadCount = notifications.filter((n) => !readIds.has(n.id) && !n.read).length;
+  const sortedNotifications = useMemo(() => {
+    return [...notifications].sort((a, b) => {
+      const ua = isNotificationUnread(a, readIds);
+      const ub = isNotificationUnread(b, readIds);
+      if (ua !== ub) return ua ? -1 : 1;
+      const ta = new Date(a.created_at || 0).getTime();
+      const tb = new Date(b.created_at || 0).getTime();
+      return tb - ta;
+    });
+  }, [notifications, readIds]);
+
+  const unreadCount = notifications.filter((n) => isNotificationUnread(n, readIds)).length;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -132,9 +132,9 @@ export default function Notifications() {
             </div>
           )}
 
-          {!loading && !error && notifications.map((n) => {
+          {!loading && !error && sortedNotifications.map((n) => {
             const meta    = TYPE_META[n.type] || TYPE_META.message;
-            const isUnread = !readIds.has(n.id) && !n.read;
+            const isUnread = isNotificationUnread(n, readIds);
 
             return (
               <button
