@@ -173,8 +173,39 @@ def _ensure_listings_table(conn):
     cur.close()
 
 
+def _ensure_listing_social_tables(conn):
+    """listing_likes + listing_comments (also applied via migration 003)."""
+    cur = conn.cursor()
+    cur.execute(
+        """CREATE TABLE IF NOT EXISTS listing_likes (
+            listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (listing_id, user_id))"""
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_listing_likes_listing ON listing_likes (listing_id)"
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_listing_likes_user ON listing_likes (user_id)")
+    cur.execute(
+        """CREATE TABLE IF NOT EXISTS listing_comments (
+            id SERIAL PRIMARY KEY,
+            listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            body TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT listing_comments_body_nonempty CHECK (char_length(trim(body)) > 0),
+            CONSTRAINT listing_comments_body_len CHECK (char_length(body) <= 2000))"""
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_listing_comments_listing ON listing_comments (listing_id, created_at DESC)"
+    )
+    conn.commit()
+    cur.close()
+
+
 def _row_to_listing(r):
-    return {
+    d = {
         "id": r[0], "title": r[1], "description": r[2],
         "price":    float(r[3]) if r[3] is not None else 0,
         "category": r[4], "condition": r[5], "image_url": r[6],
@@ -183,6 +214,15 @@ def _row_to_listing(r):
         "created_at": r[10].isoformat() if r[10] else None,
         "seller_name": r[11], "seller_email": r[12], "seller_id": r[13],
     }
+    if len(r) > 14:
+        d["like_count"] = int(r[14] or 0)
+        d["comment_count"] = int(r[15] or 0)
+        d["liked_by_me"] = bool(r[16])
+    else:
+        d["like_count"] = 0
+        d["comment_count"] = 0
+        d["liked_by_me"] = False
+    return d
 
 
 @app.route("/api/listings", methods=["GET"])
@@ -190,12 +230,20 @@ def get_listings():
     try:
         conn = get_db_connection()
         _ensure_listings_table(conn)
+        _ensure_listing_social_tables(conn)
+        viewer = session.get("user_id", -1)
         cur = conn.cursor()
-        cur.execute("""SELECT l.id, l.title, l.description, l.price, l.category,
+        cur.execute(
+            """SELECT l.id, l.title, l.description, l.price, l.category,
                l.condition, l.image_url, l.neighbourhood, l.delivery_option,
-               l.is_available, l.created_at, u.display_name, u.email, u.id
+               l.is_available, l.created_at, u.display_name, u.email, u.id,
+               (SELECT COUNT(*)::int FROM listing_likes ll WHERE ll.listing_id = l.id),
+               (SELECT COUNT(*)::int FROM listing_comments lc WHERE lc.listing_id = l.id),
+               EXISTS(SELECT 1 FROM listing_likes ll WHERE ll.listing_id = l.id AND ll.user_id = %s)
             FROM listings l JOIN users u ON l.user_id = u.id
-            WHERE l.is_available = TRUE ORDER BY l.created_at DESC""")
+            WHERE l.is_available = TRUE ORDER BY l.created_at DESC""",
+            (viewer,),
+        )
         rows = cur.fetchall()
         cur.close(); conn.close()
         return jsonify({"listings": [_row_to_listing(r) for r in rows]})
@@ -235,12 +283,19 @@ def get_listing(listing_id):
     try:
         conn = get_db_connection()
         _ensure_listings_table(conn)
+        _ensure_listing_social_tables(conn)
+        viewer = session.get("user_id", -1)
         cur = conn.cursor()
-        cur.execute("""SELECT l.id, l.title, l.description, l.price, l.category,
+        cur.execute(
+            """SELECT l.id, l.title, l.description, l.price, l.category,
                l.condition, l.image_url, l.neighbourhood, l.delivery_option,
-               l.is_available, l.created_at, u.display_name, u.email, u.id
+               l.is_available, l.created_at, u.display_name, u.email, u.id,
+               (SELECT COUNT(*)::int FROM listing_likes ll WHERE ll.listing_id = l.id),
+               (SELECT COUNT(*)::int FROM listing_comments lc WHERE lc.listing_id = l.id),
+               EXISTS(SELECT 1 FROM listing_likes ll WHERE ll.listing_id = l.id AND ll.user_id = %s)
             FROM listings l JOIN users u ON l.user_id = u.id WHERE l.id=%s""",
-            (listing_id,))
+            (viewer, listing_id),
+        )
         row = cur.fetchone()
         cur.close(); conn.close()
         if not row: return jsonify({"error": "Not found"}), 404
@@ -341,6 +396,8 @@ def get_user_listings(user_id):
         _ensure_listings_table(conn)
         cur = conn.cursor()
         where = "l.user_id=%s" if include_sold else "l.user_id=%s AND l.is_available=TRUE"
+        _ensure_listing_social_tables(conn)
+        viewer = session.get("user_id", -1)
         cur.execute(f"""
             SELECT l.id, l.title, l.description, l.price, l.category,
                    l.condition, l.image_url, l.neighbourhood, l.delivery_option,
@@ -357,10 +414,13 @@ def get_user_listings(user_id):
                      ) THEN FALSE
                      ELSE TRUE
                    END AS is_available,
-                   l.created_at, u.display_name, u.email, u.id
+                   l.created_at, u.display_name, u.email, u.id,
+                   (SELECT COUNT(*)::int FROM listing_likes ll WHERE ll.listing_id = l.id),
+                   (SELECT COUNT(*)::int FROM listing_comments lc WHERE lc.listing_id = l.id),
+                   EXISTS(SELECT 1 FROM listing_likes ll WHERE ll.listing_id = l.id AND ll.user_id = %s)
             FROM listings l JOIN users u ON l.user_id = u.id
             WHERE {where} ORDER BY l.created_at DESC""",
-            (user_id,))
+            (viewer, user_id))
         rows = cur.fetchall()
         cur.close(); conn.close()
         return jsonify({"listings": [_row_to_listing(r) for r in rows]})
@@ -379,6 +439,138 @@ def delete_listing(listing_id):
                     (listing_id, session["user_id"]))
         conn.commit(); cur.close(); conn.close()
         return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/listings/<int:listing_id>/like", methods=["POST"])
+def toggle_listing_like(listing_id):
+    if "user_id" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    me = session["user_id"]
+    try:
+        conn = get_db_connection()
+        _ensure_listing_social_tables(conn)
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM listings WHERE id=%s", (listing_id,))
+        if not cur.fetchone():
+            cur.close(); conn.close()
+            return jsonify({"error": "Not found"}), 404
+        cur.execute(
+            "SELECT 1 FROM listing_likes WHERE listing_id=%s AND user_id=%s",
+            (listing_id, me),
+        )
+        if cur.fetchone():
+            cur.execute(
+                "DELETE FROM listing_likes WHERE listing_id=%s AND user_id=%s",
+                (listing_id, me),
+            )
+            liked = False
+        else:
+            cur.execute(
+                "INSERT INTO listing_likes (listing_id, user_id) VALUES (%s,%s)",
+                (listing_id, me),
+            )
+            liked = True
+        cur.execute(
+            "SELECT COUNT(*)::int FROM listing_likes WHERE listing_id=%s",
+            (listing_id,),
+        )
+        like_count = int(cur.fetchone()[0])
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"liked": liked, "like_count": like_count})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/listings/<int:listing_id>/comments", methods=["GET"])
+def get_listing_comments_route(listing_id):
+    try:
+        limit = min(max(int(request.args.get("limit", 80)), 1), 200)
+        conn = get_db_connection()
+        _ensure_listing_social_tables(conn)
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM listings WHERE id=%s", (listing_id,))
+        if not cur.fetchone():
+            cur.close(); conn.close()
+            return jsonify({"error": "Not found"}), 404
+        cur.execute(
+            """SELECT c.id, c.body, c.created_at, u.display_name, u.id
+               FROM listing_comments c
+               JOIN users u ON u.id = c.user_id
+               WHERE c.listing_id = %s
+               ORDER BY c.created_at ASC
+               LIMIT %s""",
+            (listing_id, limit),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        comments = [
+            {
+                "id": r[0],
+                "body": r[1],
+                "created_at": r[2].isoformat() if r[2] else None,
+                "author_name": r[3],
+                "user_id": r[4],
+            }
+            for r in rows
+        ]
+        return jsonify({"comments": comments})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/listings/<int:listing_id>/comments", methods=["POST"])
+def post_listing_comment_route(listing_id):
+    if "user_id" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    data = request.get_json() or {}
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"error": "Comment text is required"}), 400
+    if len(text) > 2000:
+        return jsonify({"error": "Comment is too long (max 2000 characters)"}), 400
+    me = session["user_id"]
+    try:
+        conn = get_db_connection()
+        _ensure_listing_social_tables(conn)
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM listings WHERE id=%s", (listing_id,))
+        if not cur.fetchone():
+            cur.close(); conn.close()
+            return jsonify({"error": "Not found"}), 404
+        cur.execute(
+            """INSERT INTO listing_comments (listing_id, user_id, body)
+               VALUES (%s,%s,%s) RETURNING id, created_at""",
+            (listing_id, me, text),
+        )
+        cid, created_at = cur.fetchone()
+        cur.execute("SELECT display_name FROM users WHERE id=%s", (me,))
+        name_row = cur.fetchone()
+        author_name = name_row[0] if name_row else "Member"
+        conn.commit()
+        cur.execute(
+            "SELECT COUNT(*)::int FROM listing_comments WHERE listing_id=%s",
+            (listing_id,),
+        )
+        comment_count = int(cur.fetchone()[0])
+        cur.close()
+        conn.close()
+        return jsonify(
+            {
+                "comment": {
+                    "id": cid,
+                    "body": text,
+                    "created_at": created_at.isoformat() if created_at else None,
+                    "author_name": author_name,
+                    "user_id": me,
+                },
+                "comment_count": comment_count,
+            }
+        ), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { getMe, fetchUserAllListings, deleteListing } from "../../lib/api";
 import CreateListing from "../marketplace/CreateListing";
+import ListingEngagement from "../marketplace/ListingEngagement";
 
 // ─── Delete Confirmation Sheet ───────────────────────────────────
 function DeleteConfirm({ listing, onConfirm, onCancel, deleting }) {
@@ -41,7 +42,7 @@ function DeleteConfirm({ listing, onConfirm, onCancel, deleting }) {
 }
 
 // ─── Listing Detail Modal (own listing) ─────────────────────────
-function MyListingDetail({ listing, onClose, onDelete }) {
+function MyListingDetail({ listing, onClose, onDelete, currentUserId, onListingUpdate }) {
   const deliveryParts = (listing.delivery_option || "pickup").split(",");
   const hasPickup   = deliveryParts.includes("pickup");
   const hasDelivery = deliveryParts.includes("delivery");
@@ -127,6 +128,19 @@ function MyListingDetail({ listing, onClose, onDelete }) {
                 })}
               </p>
             )}
+
+            <div className="pt-2 border-t border-[#d4a017]/15">
+              <p className="text-xs font-bold text-[#3d2c1e]/50 dark:text-[#f8f4ed]/50 uppercase tracking-wide mb-2">
+                Likes & comments
+              </p>
+              <ListingEngagement
+                listing={listing}
+                currentUserId={currentUserId}
+                onMessage={null}
+                hideDirectMessage
+                onStatsChange={onListingUpdate}
+              />
+            </div>
           </div>
         </div>
 
@@ -229,6 +243,12 @@ export default function MyProfile({ onMessage, onOffers, offersCount = 0 }) {
           listing={detailListing}
           onClose={() => setDetailListing(null)}
           onDelete={(l) => { setDetailListing(null); setDeleteTarget(l); }}
+          currentUserId={user?.id}
+          onListingUpdate={(patch) => {
+            setDetailListing((prev) => (prev ? { ...prev, ...patch } : null));
+            const id = detailListing?.id;
+            if (id) setListings((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+          }}
         />
       )}
       {deleteTarget && (
@@ -307,6 +327,21 @@ export default function MyProfile({ onMessage, onOffers, offersCount = 0 }) {
                 ) : (
                   <div className="w-full h-full bg-[#3d2c1e]/8 dark:bg-[#f8f4ed]/8 flex items-center justify-center">
                     <span className="text-2xl opacity-30">📦</span>
+                  </div>
+                )}
+
+                {(!!listing.like_count || !!listing.comment_count) && (
+                  <div className="absolute top-1 left-1 flex flex-wrap gap-1 pointer-events-none z-[1]">
+                    {!!listing.like_count && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/55 text-white font-medium">
+                        ❤️ {listing.like_count}
+                      </span>
+                    )}
+                    {!!listing.comment_count && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/55 text-white font-medium">
+                        💬 {listing.comment_count}
+                      </span>
+                    )}
                   </div>
                 )}
 

@@ -1,8 +1,19 @@
 import { useState, useEffect } from "react";
 import { fetchUserAllListings, fetchUserProfile } from "../../lib/api";
+import ListingEngagement from "../marketplace/ListingEngagement";
 
 // ─── Listing Detail Modal ────────────────────────────────────────
-function ListingDetail({ listing, seller, onClose, onCheckout, onAddToBag, onMessage, isOwnProfile }) {
+function ListingDetail({
+  listing,
+  seller,
+  onClose,
+  onCheckout,
+  onAddToBag,
+  onMessage,
+  isOwnProfile,
+  currentUserId,
+  onListingUpdate,
+}) {
   if (!listing) return null;
   const deliveryParts = (listing.delivery_option || "pickup").split(",");
   const hasPickup   = deliveryParts.includes("pickup");
@@ -120,6 +131,19 @@ function ListingDetail({ listing, seller, onClose, onCheckout, onAddToBag, onMes
                 Posted {new Date(listing.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
               </p>
             )}
+
+            <div className="pt-2 border-t border-[#d4a017]/15">
+              <p className="text-xs font-bold text-[#3d2c1e]/50 dark:text-[#f8f4ed]/50 uppercase tracking-wide mb-2">
+                Likes & comments
+              </p>
+              <ListingEngagement
+                listing={listing}
+                currentUserId={currentUserId}
+                onMessage={onMessage}
+                hideDirectMessage={isOwnProfile}
+                onStatsChange={onListingUpdate}
+              />
+            </div>
           </div>
         </div>
 
@@ -260,6 +284,12 @@ export default function Profile({ profileId, currentUserId, onMessage, onCheckou
           onAddToBag={onAddToBag}
           onMessage={onMessage}
           isOwnProfile={isOwnProfile}
+          currentUserId={currentUserId}
+          onListingUpdate={(patch) => {
+            setDetailListing((prev) => (prev ? { ...prev, ...patch } : null));
+            const id = detailListing?.id;
+            if (id) setListings((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+          }}
         />
       )}
 
@@ -349,6 +379,21 @@ export default function Profile({ profileId, currentUserId, onMessage, onCheckou
                   {/* Select mode hint */}
                   {selectMode && !isSelected && (
                     <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full border-2 border-white/80 bg-black/20" />
+                  )}
+
+                  {(!!listing.like_count || !!listing.comment_count) && (
+                    <div className="absolute top-1 left-1 right-1 flex flex-wrap gap-1 justify-end pointer-events-none">
+                      {!!listing.like_count && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/55 text-white font-medium">
+                          ❤️ {listing.like_count}
+                        </span>
+                      )}
+                      {!!listing.comment_count && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/55 text-white font-medium">
+                          💬 {listing.comment_count}
+                        </span>
+                      )}
+                    </div>
                   )}
 
                   {/* Price overlay (always visible) */}

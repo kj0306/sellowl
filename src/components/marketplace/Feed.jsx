@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-le
 import L from "leaflet";
 import { fetchListings, searchUsers } from "../../lib/api";
 import CreateListing from "./CreateListing";
+import ListingEngagement from "./ListingEngagement";
 
 // Fix Leaflet default icon (broken with bundlers)
 delete L.Icon.Default.prototype._getIconUrl;
@@ -145,7 +146,7 @@ function MapCenterUpdater({ center }) {
   return null;
 }
 
-export default function Feed({ onPostClick, onMessage, searchQuery = "" }) {
+export default function Feed({ onPostClick, onMessage, searchQuery = "", currentUserId = null }) {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -155,7 +156,6 @@ export default function Feed({ onPostClick, onMessage, searchQuery = "" }) {
   const [conditionChecks, setConditionChecks] = useState({});
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
-  const [likedPosts, setLikedPosts] = useState(new Set());
 
   const [peopleResults, setPeopleResults] = useState([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
@@ -313,12 +313,8 @@ export default function Feed({ onPostClick, onMessage, searchQuery = "" }) {
     return matchCategory && matchCondition && matchSearch && matchPrice && matchLocation;
   });
 
-  const toggleLike = (id) => {
-    setLikedPosts((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  const patchListing = (id, patch) => {
+    setListings((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
   };
 
   const defaultCenter = [39.8283, -98.5795]; // US center
@@ -657,7 +653,6 @@ export default function Feed({ onPostClick, onMessage, searchQuery = "" }) {
           {!loading &&
             !error &&
             filteredListings.map((listing) => {
-              const isLiked = likedPosts.has(listing.id);
               const sellerInitials = (listing.seller_name || "?")
                 .split(" ")
                 .map((w) => w[0])
@@ -720,33 +715,18 @@ export default function Feed({ onPostClick, onMessage, searchQuery = "" }) {
                     )}
                   </button>
 
-                  <div className="flex items-center gap-4 px-4 py-2">
+                  <div className="px-4 py-2 flex items-start justify-between gap-2">
+                    <ListingEngagement
+                      listing={listing}
+                      currentUserId={currentUserId}
+                      onMessage={onMessage}
+                      onStatsChange={(patch) => patchListing(listing.id, patch)}
+                    />
                     <button
-                      onClick={() => toggleLike(listing.id)}
-                      className="p-1 text-xl"
-                    >
-                      {isLiked ? "❤️" : "🤍"}
-                    </button>
-                    <button
+                      type="button"
                       onClick={() => onPostClick(listing.seller_id)}
-                      className="p-1 text-xl text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70"
-                    >
-                      💬
-                    </button>
-                    <button
-                      onClick={() =>
-                        onMessage?.({
-                          id: listing.seller_id,
-                          name: listing.seller_name,
-                        })
-                      }
-                      className="p-1 text-xl text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70"
-                    >
-                      ✉️
-                    </button>
-                    <button
-                      onClick={() => onPostClick(listing.seller_id)}
-                      className="ml-auto p-1 text-xl text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70"
+                      className="p-1.5 text-xl text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70 hover:text-[#d4a017] shrink-0"
+                      title="View profile"
                     >
                       🔖
                     </button>
@@ -787,6 +767,12 @@ export default function Feed({ onPostClick, onMessage, searchQuery = "" }) {
                     <p className="text-xs text-[#3d2c1e]/50 dark:text-[#f8f4ed]/50 mt-1">
                       {listing.category}
                     </p>
+                    {(!!listing.like_count || !!listing.comment_count) && (
+                      <p className="text-xs text-[#3d2c1e]/55 dark:text-[#f8f4ed]/55 mt-0.5">
+                        {!!listing.like_count && <span className="mr-2">❤️ {listing.like_count}</span>}
+                        {!!listing.comment_count && <span>💬 {listing.comment_count}</span>}
+                      </p>
+                    )}
                     <button
                       onClick={() => onPostClick(listing.seller_id)}
                       className="text-[#3d2c1e]/70 dark:text-[#f8f4ed]/70 text-sm mt-1 hover:text-[#d4a017]"

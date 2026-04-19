@@ -3,12 +3,20 @@ notifications.py — SellOWL Notifications API
 =============================================
 Blueprint: /api/notifications and /api/notifications/count
 
-Derives notifications from existing tables — no new schema needed:
-  • messages        → new messages from others in my conversations
-  • order_events    → status changes on orders I'm part of (not caused by me)
-  • orders          → new incoming order requests (as seller)
+Persistence model (nothing is written to a dedicated "notifications" table):
+  • In-app rows are DERIVED on read by joining authoritative tables:
+      - messages + conversations + conversation_reads  (message previews)
+      - order_events + orders                           (order status timeline)
+  • Read / dismissed state for the UI badge uses browser localStorage
+    (key sellowl_notif_read_ids) for order-aggregated items; message rows use
+    conversation_reads.last_read_at in SQL as the source of truth.
+  • Counts for /api/notifications/count come from SQL on messages, orders,
+    and order_events — those tables are the canonical store.
 
-Each notification:
+For durable social signals on listings (likes, public comments), see
+migration 003_listing_social.sql → listing_likes, listing_comments.
+
+Each derived notification object:
   id          string   "msg-<id>" | "oe-<id>"
   type        string   message | order_received | order_accepted |
                        order_rejected | order_cancelled | order_expired

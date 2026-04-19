@@ -147,3 +147,17 @@ export async function fetchPendingOrderCount() {
 export async function fetchUserAllListings(userId) {
   return apiFetch(`/api/users/${userId}/listings?include_sold=true`);
 }
+
+// Listing likes & comments (persisted in listing_likes, listing_comments)
+export async function toggleListingLike(listingId) {
+  return apiFetch(`/api/listings/${listingId}/like`, { method: "POST" });
+}
+export async function fetchListingComments(listingId, limit = 80) {
+  return apiFetch(`/api/listings/${listingId}/comments?limit=${limit}`);
+}
+export async function postListingComment(listingId, text) {
+  return apiFetch(`/api/listings/${listingId}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}

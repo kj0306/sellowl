@@ -398,6 +398,7 @@ export default function App() {
               onPostClick={handlePostClick}
               onMessage={(p) => handleMessageClick(p)}
               searchQuery={searchQuery}
+              currentUserId={currentUserId}
             />
           )}
           {isProfile && profileId && (
